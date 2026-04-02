@@ -1,0 +1,65 @@
+[package]
+name = "paper-ecash-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1.0"
+console_error_panic_hook = "0.1.7"
+futures = "0.3"
+gloo-storage = "0.3.0"
+image = { version = "0.25", default-features = false, features = ["png"] }
+js-sys = "0.3"
+leptos = { version = "0.7.8", default-features = false, features = ["csr"] }
+lightning-invoice = "0.33.2"
+printpdf = { version = "0.8", default-features = false }
+qrcode = { version = "0.14", default-features = false }
+rand = "0.8.5"
+send_wrapper = "0.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["sync"] }
+tracing = "0.1"
+tracing-wasm = "0.2.1"
+uuid = { version = "1", features = ["v4", "serde", "js"] }
+wasm-bindgen = "0.2.100"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Blob",
+    "BlobPropertyBag",
+    "Clipboard",
+    "Document",
+    "DedicatedWorkerGlobalScope",
+    "FileSystemFileHandle",
+    "FileSystemSyncAccessHandle",
+    "FileSystemDirectoryHandle",
+    "HtmlAnchorElement",
+    "HtmlInputElement",
+    "Location",
+    "MessageEvent",
+    "Navigator",
+    "Response",
+    "StorageManager",
+    "Url",
+    "Window",
+    "Worker",
+] }
+
+# Fedimint — local path deps (rebased fork)
+fedimint-bip39 = { path = "../../../fedimint-fork/fedimint-bip39" }
+fedimint-client = { path = "../../../fedimint-fork/fedimint-client" }
+fedimint-client-module = { path = "../../../fedimint-fork/fedimint-client-module" }
+fedimint-connectors = { path = "../../../fedimint-fork/fedimint-connectors" }
+fedimint-core = { path = "../../../fedimint-fork/fedimint-core" }
+fedimint-cursed-redb = { path = "../../../fedimint-fork/fedimint-cursed-redb" }
+fedimint-derive-secret = { path = "../../../fedimint-fork/crypto/derive-secret" }
+fedimint-eventlog = { path = "../../../fedimint-fork/fedimint-eventlog" }
+fedimint-ln-client = { path = "../../../fedimint-fork/modules/fedimint-ln-client" }
+fedimint-meta-client = { path = "../../../fedimint-fork/modules/fedimint-meta-client" }
+fedimint-meta-common = { path = "../../../fedimint-fork/modules/fedimint-meta-common" }
+fedimint-mint-client = { path = "../../../fedimint-fork/modules/fedimint-mint-client" }
+fedimint-wallet-client = { path = "../../../fedimint-fork/modules/fedimint-wallet-client" }
+
+[lints]
+workspace = true
