@@ -21,11 +21,16 @@ pub fn StepDeposit(
     let paid = RwSignal::new(false);
 
     // On mount: create or load issuance, connect worker, generate invoice
+    let started = RwSignal::new(false);
     Effect::new({
         let build_config = build_config.clone();
         let on_next = on_next.clone();
         move || {
             let Some(rt) = wallet.get() else { return };
+            if started.get_untracked() {
+                return;
+            }
+            started.set(true);
             let existing = issuance.get_untracked();
             let build_config = build_config.clone();
             let on_next = on_next.clone();

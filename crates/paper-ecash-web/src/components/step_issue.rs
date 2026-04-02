@@ -16,10 +16,15 @@ pub fn StepIssue(
     let error = RwSignal::new(Option::<String>::None);
     let done = RwSignal::new(false);
 
+    let started = RwSignal::new(false);
     Effect::new({
         let on_next = on_next.clone();
         move || {
             let Some(rt) = wallet.get() else { return };
+            if started.get_untracked() {
+                return;
+            }
+            started.set(true);
             let Some(iss) = issuance.get_untracked() else { return };
 
             // If already issued, skip

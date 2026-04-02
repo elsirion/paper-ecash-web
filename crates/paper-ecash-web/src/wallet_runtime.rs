@@ -129,7 +129,7 @@ pub fn run_worker_entrypoint() -> bool {
     }
 
     let scope: DedicatedWorkerGlobalScope = js_sys::global().unchecked_into();
-    let runtime = Rc::new(RefCell::new(None::<WalletRuntimeCore>));
+    let runtime = Rc::new(RefCell::new(None::<(String, WalletRuntimeCore)>));
     let on_message = Closure::wrap(Box::new({
         let runtime = Rc::clone(&runtime);
         let scope = scope.clone();
@@ -166,7 +166,7 @@ pub fn run_worker_entrypoint() -> bool {
 }
 
 async fn handle_request(
-    runtime: Rc<RefCell<Option<WalletRuntimeCore>>>,
+    runtime: Rc<RefCell<Option<(String, WalletRuntimeCore)>>>,
     scope: DedicatedWorkerGlobalScope,
     request: RequestEnvelope,
 ) -> ResponseEnvelope {
@@ -176,14 +176,24 @@ async fn handle_request(
             mnemonic,
             invite_code,
         } => {
-            // Drop any existing runtime
-            runtime.borrow_mut().take();
-            match WalletRuntimeCore::connect(&issuance_id, &mnemonic, &invite_code).await {
-                Ok(core) => {
-                    runtime.borrow_mut().replace(core);
-                    serialize_ok(())
+            // Skip reconnection if already connected to this issuance
+            let already_connected = runtime
+                .borrow()
+                .as_ref()
+                .map(|(id, _)| id == &issuance_id)
+                .unwrap_or(false);
+            if already_connected {
+                serialize_ok(())
+            } else {
+                // Drop any existing runtime
+                runtime.borrow_mut().take();
+                match WalletRuntimeCore::connect(&issuance_id, &mnemonic, &invite_code).await {
+                    Ok(core) => {
+                        runtime.borrow_mut().replace((issuance_id, core));
+                        serialize_ok(())
+                    }
+                    Err(err) => Err(err),
                 }
-                Err(err) => Err(err),
             }
         }
         Command::Disconnect => {
@@ -263,7 +273,7 @@ async fn handle_request(
 }
 
 async fn with_runtime<F, Fut, T>(
-    runtime: &Rc<RefCell<Option<WalletRuntimeCore>>>,
+    runtime: &Rc<RefCell<Option<(String, WalletRuntimeCore)>>>,
     call: F,
 ) -> anyhow::Result<T>
 where
@@ -272,7 +282,8 @@ where
 {
     let wallet = runtime
         .borrow()
-        .clone()
+        .as_ref()
+        .map(|(_, core)| core.clone())
         .ok_or_else(|| anyhow::anyhow!("Worker not connected. Call Connect first."))?;
     call(wallet).await
 }
