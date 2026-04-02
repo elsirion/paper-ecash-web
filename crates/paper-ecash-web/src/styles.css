@@ -308,16 +308,48 @@ textarea.input {
     margin-bottom: 0.8rem;
 }
 
-/* Denomination */
-.denomination-breakdown h3 {
-    font-size: 0.95rem;
-    margin-bottom: 0.5rem;
+/* Denomination grid */
+.denom-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.denom-btn {
+    padding: 0.6rem 0.8rem;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+}
+.denom-btn:hover {
+    border-color: var(--text-muted);
+    transform: translateY(-1px);
+}
+.denom-btn.selected {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+}
+
+.denom-summary {
+    background: var(--bg);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
 }
 
 .denom-chips {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+    margin-top: 0.8rem;
 }
 
 .denom-chip {

@@ -40,7 +40,7 @@ pub fn StepCount(
                 <div class="summary-row">
                     <span>"Per note:"</span>
                     <span>
-                        {move || denomination::format_denomination_msat(per_note_msat())}
+                        {move || denomination::format_amount_msat(per_note_msat())}
                     </span>
                 </div>
                 <div class="summary-row">
@@ -50,7 +50,7 @@ pub fn StepCount(
                 <div class="summary-row total">
                     <span>"Total:"</span>
                     <span>
-                        {move || denomination::format_denomination_msat(total_msat())}
+                        {move || denomination::format_amount_msat(total_msat())}
                     </span>
                 </div>
             </div>
