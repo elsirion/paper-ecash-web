@@ -51,6 +51,35 @@ pub fn StepIssue(
                     return;
                 }
 
+                // Wait for balance to be available
+                status_msg.set("Checking balance...".into());
+                let required = iss.total_amount_msat;
+                let mut attempts = 0u32;
+                loop {
+                    match rt.get_balance().await {
+                        Ok(balance) if balance >= required => break,
+                        Ok(balance) => {
+                            if attempts >= 60 {
+                                error.set(Some(format!(
+                                    "Insufficient balance after waiting: have {} msat, need {} msat",
+                                    balance, required
+                                )));
+                                return;
+                            }
+                            attempts += 1;
+                            status_msg.set(format!(
+                                "Waiting for balance... ({} / {} msat)",
+                                balance, required
+                            ));
+                            gloo_timers::future::TimeoutFuture::new(2_000).await;
+                        }
+                        Err(e) => {
+                            error.set(Some(format!("Failed to check balance: {e}")));
+                            return;
+                        }
+                    }
+                }
+
                 status_msg.set("Issuing notes with exact denominations...".into());
 
                 let mut all_notes = Vec::new();
