@@ -17,7 +17,12 @@ pub fn App() -> impl IntoView {
     let wallet: RwSignal<Option<WalletRuntime>> = RwSignal::new(None);
 
     // Spawn the worker once on mount
+    let spawned = RwSignal::new(false);
     Effect::new(move || {
+        if spawned.get_untracked() {
+            return;
+        }
+        spawned.set(true);
         wasm_bindgen_futures::spawn_local(async move {
             match WalletRuntime::spawn().await {
                 Ok(rt) => wallet.set(Some(rt)),

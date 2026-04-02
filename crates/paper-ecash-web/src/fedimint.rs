@@ -50,12 +50,7 @@ impl WalletRuntimeCore {
                 Database::new(cursed_db, Default::default())
             }
             Err(err) => {
-                if browser::supports_sync_access_handles() {
-                    return Err(anyhow::anyhow!(
-                        "OPFS storage init failed: {err}"
-                    ));
-                }
-                info!("OPFS unavailable ({err}), using in-memory DB");
+                info!("OPFS storage failed ({err}), falling back to in-memory DB");
                 Database::new(MemDatabase::new(), Default::default())
             }
         };

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use leptos::prelude::*;
 
 use crate::wallet_runtime::WalletRuntime;
@@ -13,51 +11,27 @@ pub fn StepFederation(
 ) -> impl IntoView {
     let error = RwSignal::new(Option::<String>::None);
     let loading = RwSignal::new(false);
-    let on_next = Arc::new(on_next);
 
     let validate_and_next = move || {
-        let on_next = on_next.clone();
         let code = invite_code.get_untracked();
         if code.trim().is_empty() {
             error.set(Some("Please enter a federation invite code.".into()));
             return;
         }
-        error.set(None);
 
-        // Try to parse the invite code by connecting temporarily
-        let Some(rt) = wallet.get_untracked() else {
-            error.set(Some("Wallet worker not ready yet. Please wait.".into()));
+        // Quick client-side validation: invite codes start with "fed1"
+        let trimmed = code.trim().to_string();
+        if !trimmed.starts_with("fed1") {
+            error.set(Some("Invalid invite code format. Should start with 'fed1'.".into()));
             return;
-        };
+        }
 
-        loading.set(true);
-        wasm_bindgen_futures::spawn_local(async move {
-            // Validate the invite code by trying to connect
-            // We use a dummy issuance ID just for validation
-            match rt
-                .connect(
-                    "__validation__",
-                    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
-                    &code,
-                )
-                .await
-            {
-                Ok(()) => {
-                    // Get federation name
-                    match rt.get_federation_name().await {
-                        Ok(name) => federation_name.set(name),
-                        Err(_) => federation_name.set("Unknown".into()),
-                    }
-                    let _ = rt.disconnect().await;
-                    loading.set(false);
-                    on_next();
-                }
-                Err(e) => {
-                    loading.set(false);
-                    error.set(Some(format!("Invalid invite code: {e}")));
-                }
-            }
-        });
+        error.set(None);
+        invite_code.set(trimmed);
+
+        // Federation name will be resolved when we actually connect in the deposit step
+        federation_name.set(String::new());
+        on_next();
     };
 
     view! {
@@ -88,29 +62,13 @@ pub fn StepFederation(
                     })
             }}
 
-            {move || {
-                let name = federation_name.get();
-                if !name.is_empty() {
-                    Some(
-                        view! {
-                            <div class="federation-info">
-                                <span class="detail-label">"Federation: "</span>
-                                <span>{name}</span>
-                            </div>
-                        },
-                    )
-                } else {
-                    None
-                }
-            }}
-
             <div class="step-actions">
                 <button
                     class="btn btn-primary"
                     disabled=move || loading.get()
                     on:click=move |_| validate_and_next()
                 >
-                    {move || if loading.get() { "Connecting..." } else { "Next" }}
+                    "Next"
                 </button>
             </div>
         </div>
