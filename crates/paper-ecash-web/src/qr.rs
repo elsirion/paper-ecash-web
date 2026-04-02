@@ -4,10 +4,29 @@ use qrcode::QrCode;
 use crate::models::QrErrorCorrection;
 
 /// Generate a QR code as PNG bytes with transparent background.
+/// Generate a QR code as PNG bytes with transparent background (for PDF overlay).
 pub fn generate_qr_png(
     data: &str,
     ec_level: QrErrorCorrection,
     module_size: u32,
+) -> anyhow::Result<Vec<u8>> {
+    generate_qr_png_inner(data, ec_level, module_size, Rgba([0, 0, 0, 0]))
+}
+
+/// Generate a QR code as PNG bytes with white background (for display).
+pub fn generate_qr_png_white(
+    data: &str,
+    ec_level: QrErrorCorrection,
+    module_size: u32,
+) -> anyhow::Result<Vec<u8>> {
+    generate_qr_png_inner(data, ec_level, module_size, Rgba([255, 255, 255, 255]))
+}
+
+fn generate_qr_png_inner(
+    data: &str,
+    ec_level: QrErrorCorrection,
+    module_size: u32,
+    bg: Rgba<u8>,
 ) -> anyhow::Result<Vec<u8>> {
     let code = QrCode::with_error_correction_level(data, ec_level.to_qrcode_ec())?;
     let modules = code.to_colors();
@@ -15,7 +34,7 @@ pub fn generate_qr_png(
     let quiet_zone = 1u32;
     let img_size = (width + 2 * quiet_zone) * module_size;
 
-    let mut img = RgbaImage::from_pixel(img_size, img_size, Rgba([0, 0, 0, 0]));
+    let mut img = RgbaImage::from_pixel(img_size, img_size, bg);
 
     for (y, row) in modules.chunks(width as usize).enumerate() {
         for (x, &color) in row.iter().enumerate() {

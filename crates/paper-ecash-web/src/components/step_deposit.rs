@@ -243,7 +243,7 @@ pub fn StepDeposit(
 #[component]
 fn InvoiceQr(invoice: String) -> impl IntoView {
     let qr_data_uri = {
-        match crate::qr::generate_qr_png(
+        match crate::qr::generate_qr_png_white(
             &invoice,
             crate::models::QrErrorCorrection::M,
             8,
