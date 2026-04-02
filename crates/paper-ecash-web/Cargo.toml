@@ -13,7 +13,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 js-sys = "0.3"
 leptos = { version = "0.7.8", default-features = false, features = ["csr"] }
 lightning-invoice = "0.33.2"
-printpdf = { version = "0.8", default-features = false }
+printpdf = { version = "0.8", default-features = false, features = ["png"] }
 qrcode = { version = "0.14", default-features = false }
 rand = "0.8.5"
 send_wrapper = "0.6"
