@@ -33,12 +33,6 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
 
-      - name: Nix cache
-        uses: cachix/cachix-action@v15
-        with:
-          name: paper-ecash-web
-          skipPush: true
-
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
