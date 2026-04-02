@@ -47,7 +47,7 @@ jobs:
       - name: Build
         run: |
           nix develop --command bash -c '
-            trunk build --release --public-url /paper-ecash-web/
+            trunk build --release --public-url /
           '
 
       - name: Upload artifact
