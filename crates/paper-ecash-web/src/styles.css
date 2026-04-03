@@ -469,6 +469,66 @@ textarea.input {
     font-size: 0.85rem;
 }
 
+/* Federation picker */
+.federation-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+}
+
+.federation-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.7rem 1rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color 0.15s;
+    text-align: left;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.9rem;
+    width: 100%;
+}
+.federation-item:hover {
+    border-color: var(--primary);
+}
+
+.fed-info {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.fed-name {
+    font-weight: 600;
+}
+
+.fed-health {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+}
+.fed-health.online {
+    background: rgba(78, 204, 163, 0.2);
+    color: var(--success);
+}
+.fed-health.offline {
+    background: rgba(233, 69, 96, 0.15);
+    color: var(--danger);
+}
+
+.fed-detail {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 .federation-info {
     background: var(--bg);
     padding: 0.6rem 1rem;
