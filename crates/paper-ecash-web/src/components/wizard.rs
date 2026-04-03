@@ -9,6 +9,7 @@ use crate::components::step_design::StepDesign;
 use crate::components::step_federation::StepFederation;
 use crate::components::step_issue::StepIssue;
 use crate::components::step_pdf::StepPdf;
+use crate::designs::Design;
 use crate::models::{Issuance, IssuanceConfig, IssuanceStatus, QrErrorCorrection};
 use crate::storage;
 use crate::wallet_runtime::WalletRuntime;
@@ -32,6 +33,22 @@ pub fn Wizard(
 ) -> impl IntoView {
     let step = RwSignal::new(WizardStep::Federation);
     let issuance: RwSignal<Option<Issuance>> = RwSignal::new(None);
+    let designs: RwSignal<Vec<Design>> = RwSignal::new(Vec::new());
+
+    // Fetch designs
+    let designs_fetched = RwSignal::new(false);
+    Effect::new(move || {
+        if designs_fetched.get_untracked() {
+            return;
+        }
+        designs_fetched.set(true);
+        wasm_bindgen_futures::spawn_local(async move {
+            match crate::designs::fetch_designs().await {
+                Ok(d) => designs.set(d),
+                Err(e) => tracing::error!("Failed to fetch designs: {e:#}"),
+            }
+        });
+    });
 
     // Wizard config signals
     let invite_code = RwSignal::new(String::new());
@@ -122,6 +139,7 @@ pub fn Wizard(
                         WizardStep::Design => {
                             view! {
                                 <StepDesign
+                                    designs=designs
                                     design_id=design_id
                                     qr_x_offset=qr_x_offset
                                     qr_y_offset=qr_y_offset
@@ -179,7 +197,7 @@ pub fn Wizard(
                                 .into_any()
                         }
                         WizardStep::Pdf => {
-                            view! { <StepPdf issuance=issuance on_done=on_done.clone() /> }
+                            view! { <StepPdf issuance=issuance designs=designs on_done=on_done.clone() /> }
                                 .into_any()
                         }
                     }

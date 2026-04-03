@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
 use crate::browser;
-use crate::designs;
+use crate::designs::{self, Design};
 use crate::models::{Issuance, IssuanceStatus};
 use crate::pdf;
 use crate::qr;
@@ -10,6 +10,7 @@ use crate::storage;
 #[component]
 pub fn StepPdf(
     issuance: RwSignal<Option<Issuance>>,
+    designs: RwSignal<Vec<Design>>,
     on_done: impl Fn() + Send + Sync + Clone + 'static,
 ) -> impl IntoView {
     let status_msg = RwSignal::new(String::from("Ready to generate PDF."));
@@ -31,14 +32,17 @@ pub fn StepPdf(
         error.set(None);
         status_msg.set("Generating QR codes...".into());
 
+        let all_designs = designs.get_untracked();
         wasm_bindgen_futures::spawn_local(async move {
-            let design = designs::get_design(&iss.config.design_id);
+            let design = designs::get_design(&all_designs, &iss.config.design_id);
 
             // Fetch design images
-            let front_url = design.map(|d| d.front_url).unwrap_or("designs/fedi/front.png");
-            let back_url = design.map(|d| d.back_url).unwrap_or("designs/fedi/back.png");
+            let default_front = "https://raw.githubusercontent.com/elsiribot/paper-ecash-note-designs/main/fedi/front.png".to_string();
+            let default_back = "https://raw.githubusercontent.com/elsiribot/paper-ecash-note-designs/main/fedi/back.png".to_string();
+            let front_url = design.as_ref().map(|d| d.front_url.clone()).unwrap_or(default_front);
+            let back_url = design.as_ref().map(|d| d.back_url.clone()).unwrap_or(default_back);
 
-            let front_png = match browser::fetch_image_bytes(front_url).await {
+            let front_png = match browser::fetch_image_bytes(&front_url).await {
                 Ok(b) => b,
                 Err(e) => {
                     error.set(Some(format!("Failed to load front image: {e}")));
@@ -47,7 +51,7 @@ pub fn StepPdf(
                 }
             };
 
-            let back_png = match browser::fetch_image_bytes(back_url).await {
+            let back_png = match browser::fetch_image_bytes(&back_url).await {
                 Ok(b) => b,
                 Err(e) => {
                     error.set(Some(format!("Failed to load back image: {e}")));
@@ -58,9 +62,9 @@ pub fn StepPdf(
 
             // Load QR overlay if needed
             let overlay_png = if let Some(overlay_url) =
-                design.and_then(|d| d.qr_overlay_url)
+                design.as_ref().and_then(|d| d.qr_overlay_url.clone())
             {
-                match browser::fetch_image_bytes(overlay_url).await {
+                match browser::fetch_image_bytes(&overlay_url).await {
                     Ok(b) => Some(b),
                     Err(_) => None,
                 }

@@ -1,76 +1,103 @@
+use serde::Deserialize;
+use wasm_bindgen::JsCast;
+
 use crate::models::QrErrorCorrection;
+
+const DESIGNS_BASE_URL: &str =
+    "https://raw.githubusercontent.com/elsiribot/paper-ecash-note-designs/main";
 
 #[derive(Clone, Debug)]
 pub struct Design {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub front_url: &'static str,
-    pub back_url: &'static str,
+    pub id: String,
+    pub name: String,
+    pub front_url: String,
+    pub back_url: String,
     pub qr_x_offset_cm: f64,
     pub qr_y_offset_cm: f64,
     pub qr_size_cm: f64,
     pub qr_error_correction: QrErrorCorrection,
-    pub qr_overlay_url: Option<&'static str>,
+    pub qr_overlay_url: Option<String>,
 }
 
-pub const DESIGNS: &[Design] = &[
-    Design {
-        id: "fedi",
-        name: "Fedi",
-        front_url: "designs/fedi/front.png",
-        back_url: "designs/fedi/back.png",
-        qr_x_offset_cm: 0.0,
-        qr_y_offset_cm: 0.0,
-        qr_size_cm: 7.0,
-        qr_error_correction: QrErrorCorrection::M,
-        qr_overlay_url: None,
-    },
-    Design {
-        id: "fedimint_v2",
-        name: "Fedimint v2",
-        front_url: "designs/fedimint_v2/front.png",
-        back_url: "designs/fedimint_v2/back.png",
-        qr_x_offset_cm: 0.0,
-        qr_y_offset_cm: 0.0,
-        qr_size_cm: 7.0,
-        qr_error_correction: QrErrorCorrection::M,
-        qr_overlay_url: None,
-    },
-    Design {
-        id: "39c3",
-        name: "39C3",
-        front_url: "designs/39c3/front.png",
-        back_url: "designs/39c3/back.png",
-        qr_x_offset_cm: 0.9,
-        qr_y_offset_cm: 0.87,
-        qr_size_cm: 4.2,
-        qr_error_correction: QrErrorCorrection::Q,
-        qr_overlay_url: None,
-    },
-    Design {
-        id: "dark_prague_25",
-        name: "Dark Prague 2025",
-        front_url: "designs/dark_prague_25/front.png",
-        back_url: "designs/dark_prague_25/back.png",
-        qr_x_offset_cm: 0.0,
-        qr_y_offset_cm: 0.0,
-        qr_size_cm: 7.0,
-        qr_error_correction: QrErrorCorrection::M,
-        qr_overlay_url: None,
-    },
-    Design {
-        id: "historic",
-        name: "Historic",
-        front_url: "designs/historic/front.png",
-        back_url: "designs/historic/back.png",
-        qr_x_offset_cm: 1.65,
-        qr_y_offset_cm: 1.13,
-        qr_size_cm: 4.8,
-        qr_error_correction: QrErrorCorrection::Q,
-        qr_overlay_url: Some("designs/historic/qr_overlay.png"),
-    },
-];
+#[derive(Deserialize)]
+struct DesignJson {
+    id: String,
+    name: String,
+    front: String,
+    back: String,
+    qr: QrJson,
+}
 
-pub fn get_design(id: &str) -> Option<&'static Design> {
-    DESIGNS.iter().find(|d| d.id == id)
+#[derive(Deserialize)]
+struct QrJson {
+    x_offset_cm: f64,
+    y_offset_cm: f64,
+    size_cm: f64,
+    error_correction: String,
+    #[serde(default)]
+    overlay: Option<String>,
+}
+
+fn parse_ec(s: &str) -> QrErrorCorrection {
+    match s {
+        "Q" => QrErrorCorrection::Q,
+        "H" => QrErrorCorrection::H,
+        _ => QrErrorCorrection::M,
+    }
+}
+
+pub async fn fetch_designs() -> anyhow::Result<Vec<Design>> {
+    let index_url = format!("{DESIGNS_BASE_URL}/index.json");
+    let ids: Vec<String> = fetch_json(&index_url).await?;
+
+    let mut designs = Vec::with_capacity(ids.len());
+    for id in ids {
+        let design_url = format!("{DESIGNS_BASE_URL}/{id}/design.json");
+        match fetch_json::<DesignJson>(&design_url).await {
+            Ok(dj) => {
+                let base = format!("{DESIGNS_BASE_URL}/{id}");
+                designs.push(Design {
+                    id: dj.id,
+                    name: dj.name,
+                    front_url: format!("{base}/{}", dj.front),
+                    back_url: format!("{base}/{}", dj.back),
+                    qr_x_offset_cm: dj.qr.x_offset_cm,
+                    qr_y_offset_cm: dj.qr.y_offset_cm,
+                    qr_size_cm: dj.qr.size_cm,
+                    qr_error_correction: parse_ec(&dj.qr.error_correction),
+                    qr_overlay_url: dj.qr.overlay.map(|o| format!("{base}/{o}")),
+                });
+            }
+            Err(e) => {
+                tracing::warn!("Failed to load design {id}: {e}");
+            }
+        }
+    }
+    Ok(designs)
+}
+
+pub fn get_design(designs: &[Design], id: &str) -> Option<Design> {
+    designs.iter().find(|d| d.id == id).cloned()
+}
+
+async fn fetch_json<T: serde::de::DeserializeOwned>(url: &str) -> anyhow::Result<T> {
+    let window = web_sys::window().ok_or_else(|| anyhow::anyhow!("no window"))?;
+    let resp_value = wasm_bindgen_futures::JsFuture::from(window.fetch_with_str(url))
+        .await
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+    let resp: web_sys::Response = resp_value
+        .dyn_into()
+        .map_err(|_| anyhow::anyhow!("not a Response"))?;
+    if !resp.ok() {
+        anyhow::bail!("HTTP {}", resp.status());
+    }
+    let text = wasm_bindgen_futures::JsFuture::from(
+        resp.text().map_err(|e| anyhow::anyhow!("{e:?}"))?,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+    let json_str = text
+        .as_string()
+        .ok_or_else(|| anyhow::anyhow!("not a string"))?;
+    Ok(serde_json::from_str(&json_str)?)
 }
