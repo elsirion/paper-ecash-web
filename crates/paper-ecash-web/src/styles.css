@@ -499,34 +499,14 @@ textarea.input {
     border-color: var(--primary);
 }
 
-.fed-info {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-}
-
 .fed-name {
     font-weight: 600;
 }
 
-.fed-health {
-    font-size: 0.7rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 10px;
-    font-weight: 600;
-}
-.fed-health.online {
-    background: rgba(78, 204, 163, 0.2);
-    color: var(--success);
-}
-.fed-health.offline {
-    background: rgba(233, 69, 96, 0.15);
-    color: var(--danger);
-}
-
-.fed-detail {
+.fed-rating {
     font-size: 0.8rem;
     color: var(--text-muted);
+    white-space: nowrap;
 }
 
 .federation-info {

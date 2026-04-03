@@ -7,12 +7,18 @@ use crate::wallet_runtime::WalletRuntime;
 const OBSERVER_API: &str = "https://observer.fedimint.org/api/federations";
 
 #[derive(Clone, Debug, Deserialize)]
+struct NostrVotes {
+    count: u32,
+    avg: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 struct ObserverFederation {
     name: String,
     invite: String,
     health: String,
     #[serde(default)]
-    deposits: u64,
+    nostr_votes: Option<NostrVotes>,
 }
 
 #[component]
@@ -85,14 +91,12 @@ pub fn StepFederation(
 
     let filtered_feds = move || {
         let query = search.get().to_lowercase();
-        let feds = federations.get();
-        if query.is_empty() {
-            feds
-        } else {
-            feds.into_iter()
-                .filter(|f| f.name.to_lowercase().contains(&query))
-                .collect()
-        }
+        federations
+            .get()
+            .into_iter()
+            .filter(|f| f.health == "online")
+            .filter(|f| query.is_empty() || f.name.to_lowercase().contains(&query))
+            .collect::<Vec<_>>()
     };
 
     view! {
@@ -188,14 +192,9 @@ pub fn StepFederation(
                                                         let fed_clone = fed.clone();
                                                         let select_federation = select_federation.clone();
                                                         let name = fed.name.clone();
-                                                        let health = fed.health.clone();
-                                                        let deposits_btc = fed.deposits as f64
-                                                            / 100_000_000_000.0;
-                                                        let health_class = if health == "online" {
-                                                            "fed-health online"
-                                                        } else {
-                                                            "fed-health offline"
-                                                        };
+                                                        let rating = fed.nostr_votes.as_ref().and_then(|v| {
+                                                            v.avg.map(|avg| format!("{avg:.1}/5 ({} votes)", v.count))
+                                                        }).unwrap_or_else(|| "no ratings".to_string());
                                                         view! {
                                                             <button
                                                                 class="federation-item"
@@ -203,17 +202,12 @@ pub fn StepFederation(
                                                                     select_federation(fed_clone.clone())
                                                                 }
                                                             >
-                                                                <div class="fed-info">
-                                                                    <span class="fed-name">
-                                                                        {name}
-                                                                    </span>
-                                                                    <span class=health_class>
-                                                                        {health}
-                                                                    </span>
-                                                                </div>
-                                                                <div class="fed-detail">
-                                                                    {format!("{deposits_btc:.4} BTC")}
-                                                                </div>
+                                                                <span class="fed-name">
+                                                                    {name}
+                                                                </span>
+                                                                <span class="fed-rating">
+                                                                    {rating}
+                                                                </span>
                                                             </button>
                                                         }
                                                     }})
