@@ -149,17 +149,19 @@ pub fn StepDeposit(
     });
 
     view! {
-        <div class="step">
-            <h2>"Deposit"</h2>
-            <p class="step-description">"Pay the Lightning invoice to fund this issuance."</p>
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">"Deposit"</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">"Pay the Lightning invoice to fund this issuance."</p>
 
-            <div class="status-message">{move || status_msg.get()}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400 mb-4">{move || status_msg.get()}</div>
 
             {move || {
                 error
                     .get()
                     .map(|e| {
-                        view! { <div class="error-message">{e}</div> }
+                        view! {
+                            <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400 border-l-4 border-red-500">{e}</div>
+                        }
                     })
             }}
 
@@ -170,8 +172,8 @@ pub fn StepDeposit(
                 } else if inv.is_empty() {
                     Some(
                         view! {
-                            <div class="invoice-display">
-                                <div class="loading-spinner">"Generating invoice..."</div>
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-8 text-center">
+                                <div class="text-sm text-gray-500 dark:text-gray-400 animate-pulse">"Generating invoice..."</div>
                             </div>
                         }
                             .into_any(),
@@ -179,16 +181,20 @@ pub fn StepDeposit(
                 } else {
                     Some(
                         view! {
-                            <div class="invoice-display">
-                                <div class="invoice-qr">
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center">
+                                <div class="mb-4">
                                     <InvoiceQr invoice=inv.clone() />
                                 </div>
-                                <div class="invoice-text">
-                                    <textarea class="input" readonly rows="4">
+                                <div class="flex flex-col items-center gap-3">
+                                    <textarea
+                                        class="block w-full p-2.5 text-xs text-gray-900 bg-white rounded-lg border border-gray-300 dark:bg-gray-600 dark:border-gray-500 dark:text-white font-mono break-all"
+                                        readonly
+                                        rows="4"
+                                    >
                                         {inv.clone()}
                                     </textarea>
                                     <button
-                                        class="btn btn-sm btn-secondary"
+                                        class="px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors"
                                         on:click=move |_| {
                                             let inv = invoice_str.get_untracked();
                                             wasm_bindgen_futures::spawn_local(async move {
@@ -211,10 +217,10 @@ pub fn StepDeposit(
                 if let Some(iss) = issuance.get() {
                     Some(
                         view! {
-                            <div class="deposit-info">
-                                <div class="summary-row">
-                                    <span>"Amount:"</span>
-                                    <span>
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mt-4">
+                                <div class="flex justify-between text-sm py-1">
+                                    <span class="text-gray-500 dark:text-gray-400">"Amount:"</span>
+                                    <span class="text-gray-900 dark:text-white font-medium">
                                         {format!("{} sats", iss.total_amount_msat / 1000)}
                                     </span>
                                 </div>
@@ -229,7 +235,7 @@ pub fn StepDeposit(
             {move || {
                 if paid.get() {
                     Some(view! {
-                        <div class="status-message success">"Payment received! Continuing..."</div>
+                        <div class="mt-4 text-sm font-medium text-green-600 dark:text-green-400">"Payment received! Continuing..."</div>
                     })
                 } else {
                     None
@@ -265,6 +271,6 @@ fn InvoiceQr(invoice: String) -> impl IntoView {
     };
 
     view! {
-        <img src=qr_data_uri alt="Invoice QR Code" class="qr-image" />
+        <img src=qr_data_uri alt="Invoice QR Code" class="max-w-[256px] w-full mx-auto qr-image" />
     }
 }

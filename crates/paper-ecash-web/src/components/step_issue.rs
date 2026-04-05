@@ -91,30 +91,9 @@ pub fn StepIssue(
 
                     match rt.spend_exact(denoms.clone(), true).await {
                         Ok(notes) => {
-                            // spend_exact returns individual OOBNotes strings for each denomination
-                            // We want one combined OOBNotes per paper note
-                            // Since we pass all denoms at once, we get one note per denomination
-                            // Combine them or store separately - for QR we need one string per paper note
-                            // Actually the plan says: call SpendExact once per paper note with that note's denomination set
-                            // It returns individual notes that we should concatenate...
-                            // But the CLI --split approach gives one OOBNotes per denomination.
-                            // For paper notes, we want ONE OOBNotes string per paper note containing all denominations.
-
-                            // Actually, looking at the plan more carefully: each note should have a SINGLE OOBNotes
-                            // string containing all its denominations. The spend_exact gives us individual notes
-                            // that we need to combine. But since each paper note calls spend_exact once with its
-                            // denomination set, we should NOT split - we should get one OOBNotes with all denoms.
-
-                            // For now, join them as a single string. The worker returns split notes.
-                            // TODO: modify worker to return combined OOBNotes for paper note use
-
-                            // Workaround: take the first note if there's only one denomination,
-                            // otherwise we'd need to combine. For now, store them all.
                             if notes.len() == 1 {
                                 all_notes.push(notes[0].clone());
                             } else {
-                                // Multiple denominations per note - join with comma for now
-                                // The actual fix is to have the worker combine them
                                 all_notes.push(notes.join(","));
                             }
                         }
@@ -147,13 +126,13 @@ pub fn StepIssue(
     });
 
     view! {
-        <div class="step">
-            <h2>"Issue Notes"</h2>
-            <p class="step-description">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">"Issue Notes"</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
                 "Minting ecash notes with exact denominations. This may take a moment."
             </p>
 
-            <div class="status-message">{move || status_msg.get()}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400 mb-4">{move || status_msg.get()}</div>
 
             {move || {
                 let t = total.get();
@@ -162,10 +141,13 @@ pub fn StepIssue(
                     let pct = if t > 0 { (p as f64 / t as f64) * 100.0 } else { 0.0 };
                     Some(
                         view! {
-                            <div class="progress-bar">
-                                <div class="progress-fill" style=format!("width: {pct}%") />
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 my-4">
+                                <div
+                                    class="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                                    style=format!("width: {pct}%")
+                                />
                             </div>
-                            <div class="progress-text">{format!("{p} / {t}")}</div>
+                            <div class="text-center text-sm text-gray-500 dark:text-gray-400">{format!("{p} / {t}")}</div>
                         },
                     )
                 } else {
@@ -177,14 +159,16 @@ pub fn StepIssue(
                 error
                     .get()
                     .map(|e| {
-                        view! { <div class="error-message">{e}</div> }
+                        view! {
+                            <div class="p-4 mt-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400 border-l-4 border-red-500">{e}</div>
+                        }
                     })
             }}
 
             {move || {
                 if done.get() {
                     Some(view! {
-                        <div class="status-message success">"All notes issued! Generating PDF..."</div>
+                        <div class="mt-4 text-sm font-medium text-green-600 dark:text-green-400">"All notes issued! Generating PDF..."</div>
                     })
                 } else {
                     None

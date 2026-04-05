@@ -100,9 +100,9 @@ pub fn StepFederation(
     };
 
     view! {
-        <div class="step">
-            <h2>"Federation"</h2>
-            <p class="step-description">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">"Federation"</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
                 "Select a public federation or enter an invite code manually."
             </p>
 
@@ -111,13 +111,13 @@ pub fn StepFederation(
                 let select_federation = select_federation.clone();
                 if show_manual.get() {
                     view! {
-                        <div class="manual-entry">
-                            <div class="form-group">
-                                <label for="invite-code">"Invite Code"</label>
+                        <div>
+                            <div class="mb-4">
+                                <label for="invite-code" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">"Invite Code"</label>
                                 <textarea
                                     id="invite-code"
-                                    class="input"
                                     rows="3"
+                                    class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                                     placeholder="fed11..."
                                     prop:value=move || invite_code.get()
                                     on:input=move |ev| {
@@ -130,18 +130,20 @@ pub fn StepFederation(
                             {move || {
                                 error
                                     .get()
-                                    .map(|e| view! { <div class="error-message">{e}</div> })
+                                    .map(|e| view! {
+                                        <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400 border-l-4 border-red-500">{e}</div>
+                                    })
                             }}
 
-                            <div class="step-actions">
+                            <div class="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
                                 <button
-                                    class="btn btn-secondary"
+                                    class="px-5 py-2.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors"
                                     on:click=move |_| show_manual.set(false)
                                 >
                                     "Back to list"
                                 </button>
                                 <button
-                                    class="btn btn-primary"
+                                    class="px-5 py-2.5 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 transition-colors"
                                     on:click={
                                         let validate_manual = validate_manual.clone();
                                         move |_| validate_manual()
@@ -155,11 +157,11 @@ pub fn StepFederation(
                         .into_any()
                 } else {
                     view! {
-                        <div class="federation-picker">
-                            <div class="form-group">
+                        <div>
+                            <div class="mb-4">
                                 <input
                                     type="text"
-                                    class="input"
+                                    class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                                     placeholder="Search federations..."
                                     prop:value=move || search.get()
                                     on:input=move |ev| search.set(event_target_value(&ev))
@@ -169,21 +171,21 @@ pub fn StepFederation(
                             {move || {
                                 if loading_feds.get() {
                                     view! {
-                                        <div class="status-message">"Loading federations..."</div>
+                                        <div class="text-sm text-gray-500 dark:text-gray-400 text-center py-8">"Loading federations..."</div>
                                     }
                                         .into_any()
                                 } else {
                                     let feds = filtered_feds();
                                     if feds.is_empty() {
                                         view! {
-                                            <div class="empty-state">
+                                            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
                                                 <p>"No federations found."</p>
                                             </div>
                                         }
                                             .into_any()
                                     } else {
                                         view! {
-                                            <div class="federation-list">
+                                            <div class="flex flex-col gap-2 max-h-96 overflow-y-auto mb-4">
                                                 {feds
                                                     .into_iter()
                                                     .map({
@@ -197,15 +199,15 @@ pub fn StepFederation(
                                                         }).unwrap_or_else(|| "no ratings".to_string());
                                                         view! {
                                                             <button
-                                                                class="federation-item"
+                                                                class="flex items-center justify-between w-full p-3 text-left bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                                                                 on:click=move |_| {
                                                                     select_federation(fed_clone.clone())
                                                                 }
                                                             >
-                                                                <span class="fed-name">
+                                                                <span class="font-medium text-gray-900 dark:text-white text-sm">
                                                                     {name}
                                                                 </span>
-                                                                <span class="fed-rating">
+                                                                <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap ml-2">
                                                                     {rating}
                                                                 </span>
                                                             </button>
@@ -219,9 +221,9 @@ pub fn StepFederation(
                                 }
                             }}
 
-                            <div class="step-actions">
+                            <div class="flex justify-end">
                                 <button
-                                    class="btn btn-secondary"
+                                    class="px-5 py-2.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors"
                                     on:click=move |_| show_manual.set(true)
                                 >
                                     "Enter code manually"

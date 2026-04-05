@@ -3,13 +3,26 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#1a1a2e" />
+    <meta name="theme-color" content="#1f2937" />
     <meta name="description" content="Generate printable paper ecash banknotes from fedimint" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+      }
+    </script>
+    <script>
+      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    </script>
     <link data-trunk rel="rust" data-bin="paper-ecash-web" data-wasm-opt="0" />
     <link data-trunk rel="css" href="src/styles.css" />
     <link data-trunk rel="copy-file" href="src/wallet-worker.js" />
     <link data-trunk rel="copy-file" href="../../public/CNAME" />
     <title>Paper eCash</title>
   </head>
-  <body></body>
+  <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen transition-colors"></body>
 </html>

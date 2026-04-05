@@ -141,19 +141,21 @@ pub fn StepPdf(
     };
 
     view! {
-        <div class="step">
-            <h2>"Generate PDF"</h2>
-            <p class="step-description">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">"Generate PDF"</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
                 "Generate and download a printable PDF with your paper ecash notes."
             </p>
 
-            <div class="status-message">{move || status_msg.get()}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400 mb-4">{move || status_msg.get()}</div>
 
             {move || {
                 error
                     .get()
                     .map(|e| {
-                        view! { <div class="error-message">{e}</div> }
+                        view! {
+                            <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400 border-l-4 border-red-500">{e}</div>
+                        }
                     })
             }}
 
@@ -162,18 +164,18 @@ pub fn StepPdf(
                     .get()
                     .map(|iss| {
                         view! {
-                            <div class="pdf-summary">
-                                <div class="summary-row">
-                                    <span>"Notes:"</span>
-                                    <span>{iss.ecash_notes.len()}</span>
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
+                                <div class="flex justify-between text-sm py-1">
+                                    <span class="text-gray-500 dark:text-gray-400">"Notes:"</span>
+                                    <span class="text-gray-900 dark:text-white">{iss.ecash_notes.len()}</span>
                                 </div>
-                                <div class="summary-row">
-                                    <span>"Design:"</span>
-                                    <span>{iss.config.design_id.clone()}</span>
+                                <div class="flex justify-between text-sm py-1">
+                                    <span class="text-gray-500 dark:text-gray-400">"Design:"</span>
+                                    <span class="text-gray-900 dark:text-white">{iss.config.design_id.clone()}</span>
                                 </div>
-                                <div class="summary-row">
-                                    <span>"Pages:"</span>
-                                    <span>
+                                <div class="flex justify-between text-sm py-1">
+                                    <span class="text-gray-500 dark:text-gray-400">"Pages:"</span>
+                                    <span class="text-gray-900 dark:text-white">
                                         {format!(
                                             "{} (front + back)",
                                             (iss.ecash_notes.len() + 3) / 4,
@@ -185,24 +187,24 @@ pub fn StepPdf(
                     })
             }}
 
-            <div class="step-actions">
+            <div class="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
                 <button
-                    class="btn btn-primary"
-                    disabled=move || generating.get()
-                    on:click=move |_| generate()
-                >
-                    {move || {
-                        if generating.get() { "Generating..." } else { "Generate & Download PDF" }
-                    }}
-                </button>
-                <button
-                    class="btn btn-secondary"
+                    class="px-5 py-2.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors"
                     on:click={
                         let on_done = on_done.clone();
                         move |_| on_done()
                     }
                 >
                     "Done"
+                </button>
+                <button
+                    class="px-5 py-2.5 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    disabled=move || generating.get()
+                    on:click=move |_| generate()
+                >
+                    {move || {
+                        if generating.get() { "Generating..." } else { "Generate & Download PDF" }
+                    }}
                 </button>
             </div>
         </div>

@@ -105,8 +105,8 @@ pub fn Wizard(
     ];
 
     view! {
-        <div class="wizard">
-            <nav class="wizard-steps">
+        <div>
+            <nav class="flex flex-wrap gap-2 mb-6">
                 {step_names
                     .iter()
                     .map(|(name, s)| {
@@ -114,14 +114,18 @@ pub fn Wizard(
                         let current = step.clone();
                         view! {
                             <span class=move || {
-                                if current.get() == s { "step-indicator active" } else { "step-indicator" }
+                                if current.get() == s {
+                                    "text-xs font-medium px-3 py-1.5 rounded-full bg-blue-600 text-white"
+                                } else {
+                                    "text-xs font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                                }
                             }>{*name}</span>
                         }
                     })
                     .collect::<Vec<_>>()}
             </nav>
 
-            <div class="wizard-content">
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-6">
                 {move || {
                     let on_done = on_done.clone();
                     match step.get() {
