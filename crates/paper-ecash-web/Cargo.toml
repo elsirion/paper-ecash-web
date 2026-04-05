@@ -52,20 +52,20 @@ web-sys = { version = "0.3", features = [
     "Worker",
 ] }
 
-# Fedimint — local path deps (rebased fork)
-fedimint-bip39 = { path = "../../../fedimint-fork/fedimint-bip39" }
-fedimint-client = { path = "../../../fedimint-fork/fedimint-client" }
-fedimint-client-module = { path = "../../../fedimint-fork/fedimint-client-module" }
-fedimint-connectors = { path = "../../../fedimint-fork/fedimint-connectors" }
-fedimint-core = { path = "../../../fedimint-fork/fedimint-core" }
-fedimint-cursed-redb = { path = "../../../fedimint-fork/fedimint-cursed-redb" }
-fedimint-derive-secret = { path = "../../../fedimint-fork/crypto/derive-secret" }
-fedimint-eventlog = { path = "../../../fedimint-fork/fedimint-eventlog" }
-fedimint-ln-client = { path = "../../../fedimint-fork/modules/fedimint-ln-client" }
-fedimint-meta-client = { path = "../../../fedimint-fork/modules/fedimint-meta-client" }
-fedimint-meta-common = { path = "../../../fedimint-fork/modules/fedimint-meta-common" }
-fedimint-mint-client = { path = "../../../fedimint-fork/modules/fedimint-mint-client" }
-fedimint-wallet-client = { path = "../../../fedimint-fork/modules/fedimint-wallet-client" }
+# Fedimint — git deps (spend-exact fork)
+fedimint-bip39 = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-client-module = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-connectors = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-core = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-cursed-redb = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-derive-secret = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-eventlog = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-ln-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-meta-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-meta-common = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-mint-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-wallet-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
 
 [lints]
 workspace = true
