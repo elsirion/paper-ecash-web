@@ -7,3 +7,4 @@ pub mod step_count;
 pub mod step_deposit;
 pub mod step_issue;
 pub mod step_pdf;
+pub mod design_editor;
