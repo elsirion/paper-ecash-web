@@ -8,6 +8,7 @@ use crate::qr;
 
 const NOTE_WIDTH_CM: f64 = 14.0;
 const NOTE_HEIGHT_CM: f64 = 7.0;
+const MIN_QR_SIZE_CM: f64 = 0.5;
 
 fn read_file_to_signal(signal: RwSignal<Option<String>>) -> impl Fn(web_sys::Event) + 'static {
     move |ev: web_sys::Event| {
@@ -52,6 +53,23 @@ fn make_sample_qr_url() -> String {
     }
 }
 
+/// Clamp a value between min and max.
+fn clamp(v: f64, min: f64, max: f64) -> f64 {
+    v.max(min).min(max)
+}
+
+/// Round to 2 decimal places for clean cm values.
+fn round2(v: f64) -> f64 {
+    (v * 100.0).round() / 100.0
+}
+
+/// What interaction the user started on the QR overlay.
+#[derive(Clone, Copy, PartialEq)]
+enum DragMode {
+    Move,
+    Resize,
+}
+
 #[component]
 pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView {
     let design_id = RwSignal::new(String::new());
@@ -63,6 +81,18 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
     let qr_y = RwSignal::new(0.0f64);
     let qr_size = RwSignal::new(7.0f64);
     let ec_level = RwSignal::new(String::from("M"));
+
+    // Drag state
+    let dragging = RwSignal::new(Option::<DragMode>::None);
+    // Pointer position at drag start (client coords)
+    let drag_start_x = RwSignal::new(0.0f64);
+    let drag_start_y = RwSignal::new(0.0f64);
+    // QR position/size at drag start (cm)
+    let drag_start_qr_x = RwSignal::new(0.0f64);
+    let drag_start_qr_y = RwSignal::new(0.0f64);
+    let drag_start_qr_size = RwSignal::new(0.0f64);
+    // NodeRef for the preview container to get bounding rect
+    let preview_ref = NodeRef::<leptos::html::Div>::new();
 
     let sample_qr_url = make_sample_qr_url();
 
@@ -104,6 +134,93 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
     let qr_w_pct = move || qr_size.get() / NOTE_WIDTH_CM * 100.0;
     let qr_h_pct = move || qr_size.get() / NOTE_HEIGHT_CM * 100.0;
 
+    // --- Drag handlers ---
+
+    // Start dragging (move) when pointer goes down on the QR box body
+    let on_qr_pointerdown = move |ev: web_sys::PointerEvent| {
+        ev.prevent_default();
+        ev.stop_propagation();
+        // Capture pointer so we get events even if pointer leaves element
+        if let Some(target) = ev.target() {
+            let el: web_sys::Element = target.unchecked_into();
+            let _ = el.set_pointer_capture(ev.pointer_id());
+        }
+        dragging.set(Some(DragMode::Move));
+        drag_start_x.set(ev.client_x() as f64);
+        drag_start_y.set(ev.client_y() as f64);
+        drag_start_qr_x.set(qr_x.get_untracked());
+        drag_start_qr_y.set(qr_y.get_untracked());
+    };
+
+    // Start resize when pointer goes down on the resize handle
+    let on_resize_pointerdown = move |ev: web_sys::PointerEvent| {
+        ev.prevent_default();
+        ev.stop_propagation();
+        if let Some(target) = ev.target() {
+            let el: web_sys::Element = target.unchecked_into();
+            let _ = el.set_pointer_capture(ev.pointer_id());
+        }
+        dragging.set(Some(DragMode::Resize));
+        drag_start_x.set(ev.client_x() as f64);
+        drag_start_y.set(ev.client_y() as f64);
+        drag_start_qr_size.set(qr_size.get_untracked());
+        drag_start_qr_x.set(qr_x.get_untracked());
+        drag_start_qr_y.set(qr_y.get_untracked());
+    };
+
+    // Handle pointer move on the preview container
+    let on_preview_pointermove = move |ev: web_sys::PointerEvent| {
+        let Some(mode) = dragging.get_untracked() else {
+            return;
+        };
+        ev.prevent_default();
+
+        let Some(el) = preview_ref.get() else {
+            return;
+        };
+        let el_ref: &web_sys::Element = el.as_ref();
+        let rect = el_ref.get_bounding_client_rect();
+        let container_w = rect.width();
+        let container_h = rect.height();
+        if container_w == 0.0 || container_h == 0.0 {
+            return;
+        }
+
+        let dx_px = ev.client_x() as f64 - drag_start_x.get_untracked();
+        let dy_px = ev.client_y() as f64 - drag_start_y.get_untracked();
+
+        // Convert pixel delta to cm
+        let dx_cm = dx_px / container_w * NOTE_WIDTH_CM;
+        let dy_cm = dy_px / container_h * NOTE_HEIGHT_CM;
+
+        match mode {
+            DragMode::Move => {
+                let start_x = drag_start_qr_x.get_untracked();
+                let start_y = drag_start_qr_y.get_untracked();
+                let size = qr_size.get_untracked();
+                let new_x = clamp(start_x + dx_cm, 0.0, NOTE_WIDTH_CM - size);
+                let new_y = clamp(start_y + dy_cm, 0.0, NOTE_HEIGHT_CM - size);
+                qr_x.set(round2(new_x));
+                qr_y.set(round2(new_y));
+            }
+            DragMode::Resize => {
+                // Use the larger of dx/dy for uniform resize
+                let delta_cm = if dx_cm.abs() > dy_cm.abs() { dx_cm } else { dy_cm };
+                let start_size = drag_start_qr_size.get_untracked();
+                let start_x = drag_start_qr_x.get_untracked();
+                let start_y = drag_start_qr_y.get_untracked();
+                let max_size = (NOTE_WIDTH_CM - start_x).min(NOTE_HEIGHT_CM - start_y);
+                let new_size = clamp(start_size + delta_cm, MIN_QR_SIZE_CM, max_size);
+                qr_size.set(round2(new_size));
+            }
+        }
+    };
+
+    // End drag on pointer up
+    let on_preview_pointerup = move |_ev: web_sys::PointerEvent| {
+        dragging.set(None);
+    };
+
     let can_download = move || {
         !design_id.get().trim().is_empty()
             && !design_name.get().trim().is_empty()
@@ -142,6 +259,15 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
 
         let json_str = serde_json::to_string_pretty(&json).unwrap_or_default();
         browser::download_file(json_str.as_bytes(), "design.json", "application/json");
+    };
+
+    // Cursor style for the QR box based on drag state
+    let qr_cursor = move || {
+        match dragging.get() {
+            Some(DragMode::Move) => "grabbing",
+            Some(DragMode::Resize) => "nwse-resize",
+            None => "grab",
+        }
     };
 
     view! {
@@ -253,10 +379,10 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                         <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"X Offset (cm)"</label>
                         <input
                             type="number"
-                            step="0.05"
+                            step="any"
                             min="0"
                             class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            prop:value=move || qr_x.get().to_string()
+                            prop:value=move || format!("{:.2}", qr_x.get())
                             on:input=move |ev| {
                                 if let Ok(v) = event_target_value(&ev).parse() {
                                     qr_x.set(v);
@@ -268,10 +394,10 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                         <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Y Offset (cm)"</label>
                         <input
                             type="number"
-                            step="0.05"
+                            step="any"
                             min="0"
                             class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            prop:value=move || qr_y.get().to_string()
+                            prop:value=move || format!("{:.2}", qr_y.get())
                             on:input=move |ev| {
                                 if let Ok(v) = event_target_value(&ev).parse() {
                                     qr_y.set(v);
@@ -283,10 +409,10 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                         <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Size (cm)"</label>
                         <input
                             type="number"
-                            step="0.1"
+                            step="any"
                             min="0.5"
                             class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            prop:value=move || qr_size.get().to_string()
+                            prop:value=move || format!("{:.2}", qr_size.get())
                             on:input=move |ev| {
                                 if let Ok(v) = event_target_value(&ev).parse::<f64>() {
                                     if v > 0.0 {
@@ -317,6 +443,9 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                         </select>
                     </div>
                 </div>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    "Drag the QR code in the preview to reposition. Drag the corner handle to resize."
+                </p>
             </div>
 
             // Live Preview
@@ -327,34 +456,51 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                         let sample_qr = sample_qr_url.clone();
                         view! {
                             <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
-                                <div class="relative w-full" style="aspect-ratio: 2 / 1;">
+                                <div
+                                    node_ref=preview_ref
+                                    class="relative w-full select-none"
+                                    style="aspect-ratio: 2 / 1; touch-action: none;"
+                                    on:pointermove=on_preview_pointermove
+                                    on:pointerup=on_preview_pointerup
+                                    on:pointercancel=move |_ev: web_sys::PointerEvent| dragging.set(None)
+                                >
                                     <img
                                         src=front
-                                        class="absolute inset-0 w-full h-full object-fill"
+                                        class="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                                        draggable="false"
                                     />
-                                    // QR code overlay
+                                    // QR code overlay — draggable
                                     <div
-                                        class="absolute border-2 border-dashed border-blue-500 dark:border-blue-400 overflow-hidden"
+                                        class="absolute border-2 border-dashed border-blue-500 dark:border-blue-400 overflow-visible"
                                         style=move || format!(
-                                            "left: {:.2}%; top: {:.2}%; width: {:.2}%; height: {:.2}%;",
-                                            qr_left_pct(), qr_top_pct(), qr_w_pct(), qr_h_pct()
+                                            "left: {:.2}%; top: {:.2}%; width: {:.2}%; height: {:.2}%; cursor: {};",
+                                            qr_left_pct(), qr_top_pct(), qr_w_pct(), qr_h_pct(), qr_cursor()
                                         )
+                                        on:pointerdown=on_qr_pointerdown
                                     >
                                         <img
                                             src=sample_qr.clone()
-                                            class="w-full h-full object-fill qr-image"
+                                            class="w-full h-full object-fill qr-image pointer-events-none"
+                                            draggable="false"
                                         />
                                         // Overlay icon centered on QR
                                         {move || overlay_url.get().map(|url| view! {
                                             <img
                                                 src=url
-                                                class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[20%] h-[20%] object-contain"
+                                                class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[20%] h-[20%] object-contain pointer-events-none"
+                                                draggable="false"
                                             />
                                         })}
+                                        // Resize handle (bottom-right corner)
+                                        <div
+                                            class="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 dark:bg-blue-400 rounded-sm border-2 border-white dark:border-gray-900 shadow-md"
+                                            style="cursor: nwse-resize; touch-action: none;"
+                                            on:pointerdown=on_resize_pointerdown
+                                        ></div>
                                     </div>
                                 </div>
                                 <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 text-center bg-gray-50 dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600">
-                                    "Front side preview (14cm x 7cm note area)"
+                                    "Front side preview (14cm \u{00d7} 7cm note area)"
                                 </div>
                             </div>
                         }.into_any()

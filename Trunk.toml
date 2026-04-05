@@ -7,10 +7,11 @@ minify = "on_release"
 [watch]
 watch = ["crates/paper-ecash-web", "public"]
 
-[[hooks]]
-stage = "post_build"
-command = "wasm-opt"
-command_arguments = ["-Oz", "--all-features", "-o", "dist/.stage/paper-ecash-web_bg.wasm", "dist/.stage/paper-ecash-web_bg.wasm"]
+# Uncomment for release builds — slows dev rebuilds by ~60s
+# [[hooks]]
+# stage = "post_build"
+# command = "wasm-opt"
+# command_arguments = ["-Oz", "--all-features", "-o", "dist/.stage/paper-ecash-web_bg.wasm", "dist/.stage/paper-ecash-web_bg.wasm"]
 
 [serve]
 addresses = ["127.0.0.1"]
