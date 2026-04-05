@@ -181,7 +181,6 @@ pub fn Wizard(
                                     build_config=Arc::new(build_config)
                                     federation_name=federation_name
                                     on_next=move || step.set(WizardStep::Issue)
-                                    on_back=move || step.set(WizardStep::Count)
                                 />
                             }
                                 .into_any()

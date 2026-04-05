@@ -458,6 +458,16 @@ textarea.input {
     font-size: 0.9rem;
     margin-bottom: 1rem;
 }
+.status-message.success {
+    color: var(--success);
+}
+
+.loading-spinner {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 2rem;
+    font-size: 0.9rem;
+}
 
 .error-message {
     background: rgba(233, 69, 96, 0.1);

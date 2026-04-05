@@ -18,8 +18,9 @@ pub fn StepIssue(
 
     let started = RwSignal::new(false);
     Effect::new({
-        let on_next = on_next.clone();
+        let on_next = std::sync::Arc::new(on_next);
         move || {
+            let on_next = on_next.clone();
             let Some(rt) = wallet.get() else { return };
             if started.get_untracked() {
                 return;
@@ -138,6 +139,9 @@ pub fn StepIssue(
                 storage::save_issuance(&updated);
                 issuance.set(Some(updated));
                 done.set(true);
+
+                // Auto-progress to PDF step
+                on_next();
             });
         }
     });
@@ -177,27 +181,15 @@ pub fn StepIssue(
                     })
             }}
 
-            <div class="step-actions">
-                {move || {
-                    if done.get() {
-                        Some(
-                            view! {
-                                <button
-                                    class="btn btn-primary"
-                                    on:click={
-                                        let on_next = on_next.clone();
-                                        move |_| on_next()
-                                    }
-                                >
-                                    "Continue to PDF"
-                                </button>
-                            },
-                        )
-                    } else {
-                        None
-                    }
-                }}
-            </div>
+            {move || {
+                if done.get() {
+                    Some(view! {
+                        <div class="status-message success">"All notes issued! Generating PDF..."</div>
+                    })
+                } else {
+                    None
+                }
+            }}
         </div>
     }
 }

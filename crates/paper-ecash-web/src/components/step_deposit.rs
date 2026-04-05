@@ -13,7 +13,6 @@ pub fn StepDeposit(
     build_config: Arc<dyn Fn() -> IssuanceConfig + Send + Sync>,
     federation_name: RwSignal<String>,
     on_next: impl Fn() + Send + Sync + Clone + 'static,
-    on_back: impl Fn() + Send + Sync + 'static,
 ) -> impl IntoView {
     let invoice_str = RwSignal::new(String::new());
     let status_msg = RwSignal::new(String::from("Preparing..."));
@@ -166,8 +165,17 @@ pub fn StepDeposit(
 
             {move || {
                 let inv = invoice_str.get();
-                if inv.is_empty() || paid.get() {
+                if paid.get() {
                     None
+                } else if inv.is_empty() {
+                    Some(
+                        view! {
+                            <div class="invoice-display">
+                                <div class="loading-spinner">"Generating invoice..."</div>
+                            </div>
+                        }
+                            .into_any(),
+                    )
                 } else {
                     Some(
                         view! {
@@ -193,7 +201,8 @@ pub fn StepDeposit(
                                     </button>
                                 </div>
                             </div>
-                        },
+                        }
+                            .into_any(),
                     )
                 }
             }}
@@ -217,30 +226,15 @@ pub fn StepDeposit(
                 }
             }}
 
-            <div class="step-actions">
-                <button class="btn btn-secondary" on:click=move |_| on_back()>
-                    "Back"
-                </button>
-                {move || {
-                    if paid.get() {
-                        Some(
-                            view! {
-                                <button
-                                    class="btn btn-primary"
-                                    on:click={
-                                        let on_next = on_next.clone();
-                                        move |_| on_next()
-                                    }
-                                >
-                                    "Continue"
-                                </button>
-                            },
-                        )
-                    } else {
-                        None
-                    }
-                }}
-            </div>
+            {move || {
+                if paid.get() {
+                    Some(view! {
+                        <div class="status-message success">"Payment received! Continuing..."</div>
+                    })
+                } else {
+                    None
+                }
+            }}
         </div>
     }
 }
