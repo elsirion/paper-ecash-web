@@ -3,8 +3,14 @@ use wasm_bindgen::JsCast;
 
 use crate::models::{QrErrorCorrection, TextConfig};
 
-const DESIGNS_BASE_URL: &str =
+pub const DEFAULT_DESIGNS_URL: &str =
     "https://raw.githubusercontent.com/elsiribot/paper-ecash-note-designs/main";
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct DesignSource {
+    pub name: String,
+    pub base_url: String,
+}
 
 #[derive(Clone, Debug)]
 pub struct Design {
@@ -50,15 +56,20 @@ fn parse_ec(s: &str) -> QrErrorCorrection {
 }
 
 pub async fn fetch_designs() -> anyhow::Result<Vec<Design>> {
-    let index_url = format!("{DESIGNS_BASE_URL}/index.json");
+    fetch_designs_from(DEFAULT_DESIGNS_URL).await
+}
+
+pub async fn fetch_designs_from(base_url: &str) -> anyhow::Result<Vec<Design>> {
+    let base_url = base_url.trim_end_matches('/');
+    let index_url = format!("{base_url}/index.json");
     let ids: Vec<String> = fetch_json(&index_url).await?;
 
     let mut designs = Vec::with_capacity(ids.len());
     for id in ids {
-        let design_url = format!("{DESIGNS_BASE_URL}/{id}/design.json");
+        let design_url = format!("{base_url}/{id}/design.json");
         match fetch_json::<DesignJson>(&design_url).await {
             Ok(dj) => {
-                let base = format!("{DESIGNS_BASE_URL}/{id}");
+                let base = format!("{base_url}/{id}");
                 designs.push(Design {
                     id: dj.id,
                     name: dj.name,
