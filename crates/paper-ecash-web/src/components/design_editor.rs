@@ -124,8 +124,8 @@ fn inject_font_link(family: &str) {
 pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView {
     let design_id = RwSignal::new(String::new());
     let design_name = RwSignal::new(String::new());
+    let id_manually_edited = RwSignal::new(false);
     let front_url = RwSignal::new(Option::<String>::None);
-    let back_url = RwSignal::new(Option::<String>::None);
     let overlay_url = RwSignal::new(Option::<String>::None);
     let qr_x = RwSignal::new(0.0f64);
     let qr_y = RwSignal::new(0.0f64);
@@ -161,8 +161,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
     let sample_qr_url = make_sample_qr_url();
 
     let on_front_change = read_file_to_signal(front_url);
-    let on_back_change = read_file_to_signal(back_url);
-
     // Overlay change handler with auto EC upgrade
     let on_overlay_change = move |ev: web_sys::Event| {
         let Some(target) = ev.target() else { return };
@@ -346,7 +344,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         !design_id.get().trim().is_empty()
             && !design_name.get().trim().is_empty()
             && front_url.get().is_some()
-            && back_url.get().is_some()
     };
 
     let build_design_json = move || -> Option<String> {
@@ -416,19 +413,8 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                 "Create a note design template with live QR code placement preview."
             </p>
 
-            // ID and Name
+            // Name and ID
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div>
-                    <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Design ID"</label>
-                    <input
-                        type="text"
-                        placeholder="my_design"
-                        class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-                        prop:value=move || design_id.get()
-                        on:input=move |ev| design_id.set(event_target_value(&ev))
-                    />
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">"Lowercase, no spaces (used as folder name)"</p>
-                </div>
                 <div>
                     <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Design Name"</label>
                     <input
@@ -436,8 +422,31 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                         placeholder="My Design"
                         class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
                         prop:value=move || design_name.get()
-                        on:input=move |ev| design_name.set(event_target_value(&ev))
+                        on:input=move |ev| {
+                            let name = event_target_value(&ev);
+                            design_name.set(name.clone());
+                            if !id_manually_edited.get_untracked() {
+                                let id = name.trim().to_lowercase()
+                                    .replace(|c: char| !c.is_alphanumeric(), "_")
+                                    .trim_matches('_').to_string();
+                                design_id.set(id);
+                            }
+                        }
                     />
+                </div>
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Design ID"</label>
+                    <input
+                        type="text"
+                        placeholder="my_design"
+                        class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                        prop:value=move || design_id.get()
+                        on:input=move |ev| {
+                            id_manually_edited.set(true);
+                            design_id.set(event_target_value(&ev));
+                        }
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">"Auto-generated from name. Edit to override."</p>
                 </div>
             </div>
 
@@ -453,21 +462,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                             on:change=on_front_change
                         />
                         {move || front_url.get().map(|url| view! {
-                            <img src=url class="h-10 rounded border border-gray-300 dark:border-gray-600" />
-                        })}
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Back Image"</label>
-                    <div class="flex items-center gap-3">
-                        <input
-                            type="file"
-                            accept="image/png,image/jpeg"
-                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:text-gray-400 dark:file:bg-blue-900/30 dark:file:text-blue-400"
-                            on:change=on_back_change
-                        />
-                        {move || back_url.get().map(|url| view! {
                             <img src=url class="h-10 rounded border border-gray-300 dark:border-gray-600" />
                         })}
                     </div>
@@ -815,17 +809,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                     }
                 }}
 
-                // Back image preview (smaller)
-                {move || back_url.get().map(|url| view! {
-                    <div class="mt-3 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
-                        <div class="w-full sm:w-1/2">
-                            <img src=url class="w-full" style="aspect-ratio: 2 / 1; object-fit: fill;" />
-                        </div>
-                        <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 text-center bg-gray-50 dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600">
-                            "Back side"
-                        </div>
-                    </div>
-                })}
             </div>
 
             // Generated JSON preview
