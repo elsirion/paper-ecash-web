@@ -92,6 +92,7 @@ pub fn Wizard(
         qr_y_offset_cm: qr_y_offset.get_untracked(),
         qr_size_cm: qr_size.get_untracked(),
         qr_error_correction: qr_ec.get_untracked(),
+        amount_text: None,
     };
 
     let step_names = [

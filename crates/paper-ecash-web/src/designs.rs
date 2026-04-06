@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use wasm_bindgen::JsCast;
 
-use crate::models::QrErrorCorrection;
+use crate::models::{QrErrorCorrection, TextConfig};
 
 const DESIGNS_BASE_URL: &str =
     "https://raw.githubusercontent.com/elsiribot/paper-ecash-note-designs/main";
@@ -17,6 +17,7 @@ pub struct Design {
     pub qr_size_cm: f64,
     pub qr_error_correction: QrErrorCorrection,
     pub qr_overlay_url: Option<String>,
+    pub amount_text: Option<TextConfig>,
 }
 
 #[derive(Deserialize)]
@@ -26,6 +27,8 @@ struct DesignJson {
     front: String,
     back: String,
     qr: QrJson,
+    #[serde(default)]
+    amount_text: Option<TextConfig>,
 }
 
 #[derive(Deserialize)]
@@ -66,6 +69,7 @@ pub async fn fetch_designs() -> anyhow::Result<Vec<Design>> {
                     qr_size_cm: dj.qr.size_cm,
                     qr_error_correction: parse_ec(&dj.qr.error_correction),
                     qr_overlay_url: dj.qr.overlay.map(|o| format!("{base}/{o}")),
+                    amount_text: dj.amount_text,
                 });
             }
             Err(e) => {

@@ -1,5 +1,15 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TextConfig {
+    pub font_family: String,
+    pub font_url: String,
+    pub font_size_pt: f64,
+    pub color_hex: String,
+    pub x_offset_cm: f64,
+    pub y_offset_cm: f64,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum IssuanceStatus {
     AwaitingDeposit,
@@ -29,6 +39,8 @@ pub struct IssuanceConfig {
     pub qr_y_offset_cm: f64,
     pub qr_size_cm: f64,
     pub qr_error_correction: QrErrorCorrection,
+    #[serde(default)]
+    pub amount_text: Option<TextConfig>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Copy)]

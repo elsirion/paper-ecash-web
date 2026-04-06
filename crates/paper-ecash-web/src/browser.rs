@@ -21,6 +21,10 @@ extern "C" {
 
     #[wasm_bindgen(catch, js_name = fetchDesignImage)]
     pub fn fetch_design_image(url: &str) -> Result<Promise, JsValue>;
+
+    #[wasm_bindgen(catch, js_name = fetchFontWoff2)]
+    pub fn fetch_font_woff2_js(family: &str) -> Result<Promise, JsValue>;
+
 }
 
 pub async fn open_wallet_handle(file_name: &str) -> anyhow::Result<FileSystemSyncAccessHandle> {
@@ -68,6 +72,6 @@ pub async fn fetch_image_bytes(url: &str) -> anyhow::Result<Vec<u8>> {
     Ok(array.to_vec())
 }
 
-fn js_error(err: JsValue) -> anyhow::Error {
+pub fn js_error(err: JsValue) -> anyhow::Error {
     anyhow::anyhow!(err.as_string().unwrap_or_else(|| format!("{err:?}")))
 }

@@ -54,6 +54,26 @@ export function downloadBlob(bytes, filename, mimeType) {
   }, 100);
 }
 
+export async function fetchFontWoff2(family) {
+  const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}`;
+  const cssResp = await fetch(cssUrl);
+  if (!cssResp.ok) {
+    throw new Error(`Failed to fetch font CSS for "${family}": ${cssResp.status}`);
+  }
+  const css = await cssResp.text();
+  const match = css.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2)\)/);
+  if (!match) {
+    throw new Error(`No woff2 URL found in CSS for "${family}"`);
+  }
+  const woff2Url = match[1];
+  const fontResp = await fetch(woff2Url);
+  if (!fontResp.ok) {
+    throw new Error(`Failed to fetch woff2 for "${family}": ${fontResp.status}`);
+  }
+  const buf = await fontResp.arrayBuffer();
+  return { url: woff2Url, bytes: new Uint8Array(buf) };
+}
+
 export async function fetchDesignImage(url) {
   const resp = await fetch(url);
   if (!resp.ok) {

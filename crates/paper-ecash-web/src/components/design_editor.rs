@@ -3,12 +3,38 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 
 use crate::browser;
+use crate::fonts;
 use crate::models::QrErrorCorrection;
 use crate::qr;
 
 const NOTE_WIDTH_CM: f64 = 14.0;
 const NOTE_HEIGHT_CM: f64 = 7.0;
 const MIN_QR_SIZE_CM: f64 = 0.5;
+
+/// Top Google Fonts by popularity. First 20 shown by default, rest searchable.
+const GOOGLE_FONTS: &[&str] = &[
+    "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald",
+    "Poppins", "Raleway", "Inter", "Nunito", "Ubuntu",
+    "Playfair Display", "Merriweather", "PT Sans", "Roboto Condensed", "Roboto Mono",
+    "Source Code Pro", "Bebas Neue", "Archivo Black", "Anton", "Bangers",
+    // ---
+    "Noto Sans", "Noto Serif", "Rubik", "Work Sans", "Fira Sans",
+    "Quicksand", "Barlow", "Mulish", "Kanit", "Inconsolata",
+    "Titillium Web", "Heebo", "Libre Baskerville", "Libre Franklin", "Karla",
+    "Manrope", "Josefin Sans", "DM Sans", "Cabin", "Arimo",
+    "Bitter", "Exo 2", "Overpass", "Asap", "IBM Plex Sans",
+    "IBM Plex Mono", "Crimson Text", "Yanone Kaffeesatz", "Abel", "Archivo",
+    "Catamaran", "Signika", "Varela Round", "Questrial", "Rokkitt",
+    "Fjalla One", "Jost", "Mukta", "Hind", "Cairo",
+    "Cormorant Garamond", "Spectral", "Space Grotesk", "Space Mono", "Zilla Slab",
+    "Prompt", "Sarabun", "Public Sans", "Outfit", "Sora",
+    "Lexend", "Plus Jakarta Sans", "Red Hat Display", "Zen Kaku Gothic New", "Nanum Gothic",
+    "Comfortaa", "Pacifico", "Permanent Marker", "Satisfy", "Lobster",
+    "Dancing Script", "Great Vibes", "Caveat", "Shadows Into Light", "Sacramento",
+    "Amatic SC", "Righteous", "Bungee", "Press Start 2P", "VT323",
+    "Silkscreen", "Pixelify Sans", "Share Tech Mono", "JetBrains Mono", "Fira Code",
+    "Source Sans 3", "Noto Sans Mono", "PT Serif", "EB Garamond", "Lora",
+];
 
 fn read_file_to_signal(signal: RwSignal<Option<String>>) -> impl Fn(web_sys::Event) + 'static {
     move |ev: web_sys::Event| {
@@ -68,6 +94,30 @@ fn round2(v: f64) -> f64 {
 enum DragMode {
     Move,
     Resize,
+    TextMove,
+    TextResize,
+}
+
+/// Inject a Google Fonts CSS link into the document head for preview rendering.
+fn inject_font_link(family: &str) {
+    let Some(window) = web_sys::window() else { return };
+    let Some(document) = window.document() else { return };
+    let Some(head) = document.head() else { return };
+    let link_id = format!("gfont-{}", family.replace(' ', "-"));
+    if document.get_element_by_id(&link_id).is_some() {
+        return;
+    }
+    let Ok(link) = document.create_element("link") else { return };
+    let _ = link.set_attribute("id", &link_id);
+    let _ = link.set_attribute("rel", "stylesheet");
+    let _ = link.set_attribute(
+        "href",
+        &format!(
+            "https://fonts.googleapis.com/css2?family={}&display=swap",
+            js_sys::encode_uri_component(family)
+        ),
+    );
+    let _ = head.append_child(&link);
 }
 
 #[component]
@@ -84,15 +134,29 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
 
     // Drag state
     let dragging = RwSignal::new(Option::<DragMode>::None);
-    // Pointer position at drag start (client coords)
     let drag_start_x = RwSignal::new(0.0f64);
     let drag_start_y = RwSignal::new(0.0f64);
-    // QR position/size at drag start (cm)
     let drag_start_qr_x = RwSignal::new(0.0f64);
     let drag_start_qr_y = RwSignal::new(0.0f64);
     let drag_start_qr_size = RwSignal::new(0.0f64);
-    // NodeRef for the preview container to get bounding rect
+    let drag_start_text_x = RwSignal::new(0.0f64);
+    let drag_start_text_y = RwSignal::new(0.0f64);
+    let drag_start_text_w = RwSignal::new(0.0f64);
+    let drag_start_text_h = RwSignal::new(0.0f64);
     let preview_ref = NodeRef::<leptos::html::Div>::new();
+
+    // Amount text signals
+    let text_enabled = RwSignal::new(false);
+    let text_font = RwSignal::new(String::from("Roboto"));
+    let text_font_search = RwSignal::new(String::new());
+    let text_color = RwSignal::new(String::from("#000000"));
+    let text_x = RwSignal::new(1.0f64);
+    let text_y = RwSignal::new(0.5f64);
+    let text_w = RwSignal::new(4.0f64);
+    let text_h = RwSignal::new(1.0f64);
+    let text_sample = RwSignal::new(String::from("1000 sats"));
+    let show_font_dropdown = RwSignal::new(false);
+    let text_font_url = RwSignal::new(String::new());
 
     let sample_qr_url = make_sample_qr_url();
 
@@ -128,6 +192,20 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         overlay_url.set(None);
     };
 
+    // Font selection handler
+    let select_font = move |family: String| {
+        text_font.set(family.clone());
+        text_font_search.set(family.clone());
+        show_font_dropdown.set(false);
+        inject_font_link(&family);
+        wasm_bindgen_futures::spawn_local(async move {
+            match fonts::fetch_font_woff2(&family).await {
+                Ok((url, _)) => text_font_url.set(url),
+                Err(e) => tracing::warn!("Failed to fetch font woff2: {e}"),
+            }
+        });
+    };
+
     // QR position as percentage of note area
     let qr_left_pct = move || qr_x.get() / NOTE_WIDTH_CM * 100.0;
     let qr_top_pct = move || qr_y.get() / NOTE_HEIGHT_CM * 100.0;
@@ -136,11 +214,9 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
 
     // --- Drag handlers ---
 
-    // Start dragging (move) when pointer goes down on the QR box body
     let on_qr_pointerdown = move |ev: web_sys::PointerEvent| {
         ev.prevent_default();
         ev.stop_propagation();
-        // Capture pointer so we get events even if pointer leaves element
         if let Some(target) = ev.target() {
             let el: web_sys::Element = target.unchecked_into();
             let _ = el.set_pointer_capture(ev.pointer_id());
@@ -152,7 +228,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         drag_start_qr_y.set(qr_y.get_untracked());
     };
 
-    // Start resize when pointer goes down on the resize handle
     let on_resize_pointerdown = move |ev: web_sys::PointerEvent| {
         ev.prevent_default();
         ev.stop_propagation();
@@ -168,7 +243,36 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         drag_start_qr_y.set(qr_y.get_untracked());
     };
 
-    // Handle pointer move on the preview container
+    let on_text_pointerdown = move |ev: web_sys::PointerEvent| {
+        ev.prevent_default();
+        ev.stop_propagation();
+        if let Some(target) = ev.target() {
+            let el: web_sys::Element = target.unchecked_into();
+            let _ = el.set_pointer_capture(ev.pointer_id());
+        }
+        dragging.set(Some(DragMode::TextMove));
+        drag_start_x.set(ev.client_x() as f64);
+        drag_start_y.set(ev.client_y() as f64);
+        drag_start_text_x.set(text_x.get_untracked());
+        drag_start_text_y.set(text_y.get_untracked());
+    };
+
+    let on_text_resize_pointerdown = move |ev: web_sys::PointerEvent| {
+        ev.prevent_default();
+        ev.stop_propagation();
+        if let Some(target) = ev.target() {
+            let el: web_sys::Element = target.unchecked_into();
+            let _ = el.set_pointer_capture(ev.pointer_id());
+        }
+        dragging.set(Some(DragMode::TextResize));
+        drag_start_x.set(ev.client_x() as f64);
+        drag_start_y.set(ev.client_y() as f64);
+        drag_start_text_w.set(text_w.get_untracked());
+        drag_start_text_h.set(text_h.get_untracked());
+        drag_start_text_x.set(text_x.get_untracked());
+        drag_start_text_y.set(text_y.get_untracked());
+    };
+
     let on_preview_pointermove = move |ev: web_sys::PointerEvent| {
         let Some(mode) = dragging.get_untracked() else {
             return;
@@ -189,7 +293,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         let dx_px = ev.client_x() as f64 - drag_start_x.get_untracked();
         let dy_px = ev.client_y() as f64 - drag_start_y.get_untracked();
 
-        // Convert pixel delta to cm
         let dx_cm = dx_px / container_w * NOTE_WIDTH_CM;
         let dy_cm = dy_px / container_h * NOTE_HEIGHT_CM;
 
@@ -204,7 +307,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                 qr_y.set(round2(new_y));
             }
             DragMode::Resize => {
-                // Use the larger of dx/dy for uniform resize
                 let delta_cm = if dx_cm.abs() > dy_cm.abs() { dx_cm } else { dy_cm };
                 let start_size = drag_start_qr_size.get_untracked();
                 let start_x = drag_start_qr_x.get_untracked();
@@ -213,10 +315,29 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                 let new_size = clamp(start_size + delta_cm, MIN_QR_SIZE_CM, max_size);
                 qr_size.set(round2(new_size));
             }
+            DragMode::TextMove => {
+                let start_x = drag_start_text_x.get_untracked();
+                let start_y = drag_start_text_y.get_untracked();
+                let tw = text_w.get_untracked();
+                let th = text_h.get_untracked();
+                let new_x = clamp(start_x + dx_cm, 0.0, NOTE_WIDTH_CM - tw);
+                let new_y = clamp(start_y + dy_cm, 0.0, NOTE_HEIGHT_CM - th);
+                text_x.set(round2(new_x));
+                text_y.set(round2(new_y));
+            }
+            DragMode::TextResize => {
+                let start_w = drag_start_text_w.get_untracked();
+                let start_h = drag_start_text_h.get_untracked();
+                let tx = drag_start_text_x.get_untracked();
+                let ty = drag_start_text_y.get_untracked();
+                let new_w = clamp(start_w + dx_cm, 0.5, NOTE_WIDTH_CM - tx);
+                let new_h = clamp(start_h + dy_cm, 0.3, NOTE_HEIGHT_CM - ty);
+                text_w.set(round2(new_w));
+                text_h.set(round2(new_h));
+            }
         }
     };
 
-    // End drag on pointer up
     let on_preview_pointerup = move |_ev: web_sys::PointerEvent| {
         dragging.set(None);
     };
@@ -228,11 +349,11 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
             && back_url.get().is_some()
     };
 
-    let download_json = move |_| {
+    let build_design_json = move || -> Option<String> {
         let id = design_id.get_untracked().trim().to_string();
         let name = design_name.get_untracked().trim().to_string();
         if id.is_empty() || name.is_empty() {
-            return;
+            return None;
         }
 
         let mut qr_obj = serde_json::json!({
@@ -249,7 +370,7 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                 .insert("overlay".into(), "qr_overlay.png".into());
         }
 
-        let json = serde_json::json!({
+        let mut json = serde_json::json!({
             "id": id,
             "name": name,
             "front": "front.png",
@@ -257,15 +378,33 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
             "qr": qr_obj,
         });
 
-        let json_str = serde_json::to_string_pretty(&json).unwrap_or_default();
-        browser::download_file(json_str.as_bytes(), "design.json", "application/json");
+        if text_enabled.get_untracked() {
+            json.as_object_mut().unwrap().insert(
+                "amount_text".into(),
+                serde_json::json!({
+                    "font_family": text_font.get_untracked(),
+                    "font_url": text_font_url.get_untracked(),
+                    "font_size_pt": text_h.get_untracked() * 28.3465,
+                    "color_hex": text_color.get_untracked(),
+                    "x_offset_cm": text_x.get_untracked(),
+                    "y_offset_cm": text_y.get_untracked(),
+                }),
+            );
+        }
+
+        Some(serde_json::to_string_pretty(&json).unwrap_or_default())
     };
 
-    // Cursor style for the QR box based on drag state
+    let download_json = move |_| {
+        if let Some(json_str) = build_design_json() {
+            browser::download_file(json_str.as_bytes(), "design.json", "application/json");
+        }
+    };
+
     let qr_cursor = move || {
         match dragging.get() {
-            Some(DragMode::Move) => "grabbing",
-            Some(DragMode::Resize) => "nwse-resize",
+            Some(DragMode::Move) | Some(DragMode::TextMove) => "grabbing",
+            Some(DragMode::Resize) | Some(DragMode::TextResize) => "nwse-resize",
             None => "grab",
         }
     };
@@ -428,7 +567,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                             class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             on:change=move |ev| {
                                 let val = event_target_value(&ev);
-                                // Enforce minimum Q when overlay exists
                                 if overlay_url.get_untracked().is_some() && val == "M" {
                                     ec_level.set("Q".into());
                                 } else {
@@ -448,6 +586,128 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                 </p>
             </div>
 
+            // Amount Text Settings
+            <div class="mb-6">
+                <div class="flex items-center gap-2 mb-3">
+                    <input
+                        type="checkbox"
+                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600"
+                        prop:checked=move || text_enabled.get()
+                        on:change=move |ev| {
+                            let checked = event_target_checked(&ev);
+                            text_enabled.set(checked);
+                        }
+                    />
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">"Amount Text"</h3>
+                </div>
+
+                {move || {
+                    if !text_enabled.get() {
+                        return view! { <div></div> }.into_any();
+                    }
+                    let select_font_clone = select_font.clone();
+                    view! {
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            // Font picker
+                            <div class="col-span-2 relative">
+                                <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Font"</label>
+                                <input
+                                    type="text"
+                                    placeholder="Search Google Fonts..."
+                                    class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    prop:value=move || text_font_search.get()
+                                    on:input=move |ev| {
+                                        text_font_search.set(event_target_value(&ev));
+                                        show_font_dropdown.set(true);
+                                    }
+                                    on:focus=move |_| show_font_dropdown.set(true)
+                                />
+                                {move || {
+                                    if !show_font_dropdown.get() {
+                                        return view! { <div></div> }.into_any();
+                                    }
+                                    let search = text_font_search.get().to_lowercase();
+                                    let has_search = !search.trim().is_empty();
+                                    let entries: Vec<&str> = if has_search {
+                                        GOOGLE_FONTS.iter()
+                                            .copied()
+                                            .filter(|f| f.to_lowercase().contains(&search))
+                                            .collect()
+                                    } else {
+                                        GOOGLE_FONTS.iter().copied().take(20).collect()
+                                    };
+                                    if entries.is_empty() {
+                                        return view! {
+                                            <div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-3 text-sm text-gray-500 dark:text-gray-400">
+                                                "No fonts found"
+                                            </div>
+                                        }.into_any();
+                                    }
+                                    // Inject font CSS links for preview
+                                    for family in &entries {
+                                        inject_font_link(family);
+                                    }
+                                    let select_font_inner = select_font_clone.clone();
+                                    let heading = if has_search { "Search results" } else { "Popular fonts" };
+                                    view! {
+                                        <div class="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg">
+                                            <div class="px-3 py-1.5 text-xs text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-600">
+                                                {heading}
+                                            </div>
+                                            {entries.into_iter().map(|family| {
+                                                let family_owned = family.to_string();
+                                                let family2 = family_owned.clone();
+                                                let family3 = family_owned.clone();
+                                                let select_fn = select_font_inner.clone();
+                                                view! {
+                                                    <button
+                                                        class="block w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600"
+                                                        on:click=move |_| select_fn(family_owned.clone())
+                                                    >
+                                                        <span class="text-xs text-gray-400 dark:text-gray-500">{family2.clone()}</span>
+                                                        <span
+                                                            class="block text-base"
+                                                            style=format!("font-family: '{}', sans-serif;", family2)
+                                                        >
+                                                            {format!("The quick brown fox — {}", family3)}
+                                                        </span>
+                                                    </button>
+                                                }
+                                            }).collect_view()}
+                                        </div>
+                                    }.into_any()
+                                }}
+                            </div>
+
+                            // Color
+                            <div>
+                                <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Color"</label>
+                                <input
+                                    type="color"
+                                    class="block w-full h-[38px] p-1 text-sm bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                                    prop:value=move || text_color.get()
+                                    on:input=move |ev| text_color.set(event_target_value(&ev))
+                                />
+                            </div>
+
+                            // Sample text
+                            <div class="col-span-2">
+                                <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Sample Text"</label>
+                                <input
+                                    type="text"
+                                    class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    prop:value=move || text_sample.get()
+                                    on:input=move |ev| text_sample.set(event_target_value(&ev))
+                                />
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    "Drag the text box in the preview to reposition. Drag the corner handle to resize."
+                                </p>
+                            </div>
+                        </div>
+                    }.into_any()
+                }}
+            </div>
+
             // Live Preview
             <div class="mb-6">
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">"Live Preview"</h3>
@@ -459,7 +719,7 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                 <div
                                     node_ref=preview_ref
                                     class="relative w-full select-none"
-                                    style="aspect-ratio: 2 / 1; touch-action: none;"
+                                    style="aspect-ratio: 2 / 1; touch-action: none; container-type: size;"
                                     on:pointermove=on_preview_pointermove
                                     on:pointerup=on_preview_pointerup
                                     on:pointercancel=move |_ev: web_sys::PointerEvent| dragging.set(None)
@@ -498,6 +758,46 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                             on:pointerdown=on_resize_pointerdown
                                         ></div>
                                     </div>
+                                    // Amount text box
+                                    {move || {
+                                        if !text_enabled.get() {
+                                            return view! { <span></span> }.into_any();
+                                        }
+                                        let font = text_font.get();
+                                        let color = text_color.get();
+                                        let x_pct = text_x.get() / NOTE_WIDTH_CM * 100.0;
+                                        let y_pct = text_y.get() / NOTE_HEIGHT_CM * 100.0;
+                                        let w_pct = text_w.get() / NOTE_WIDTH_CM * 100.0;
+                                        let h_pct = text_h.get() / NOTE_HEIGHT_CM * 100.0;
+                                        let sample = text_sample.get();
+                                        view! {
+                                            <div
+                                                class="absolute border-2 border-dashed border-blue-500 dark:border-blue-400 overflow-hidden select-none flex items-center justify-center"
+                                                style=move || format!(
+                                                    "left: {x_pct:.2}%; top: {y_pct:.2}%; width: {w_pct:.2}%; height: {h_pct:.2}%; cursor: grab; touch-action: none;",
+                                                )
+                                                on:pointerdown=on_text_pointerdown
+                                            >
+                                                <span
+                                                    class="pointer-events-none whitespace-nowrap"
+                                                    style=move || {
+                                                        let fs = h_pct * 0.75;
+                                                        format!(
+                                                            "font-family: '{font}', sans-serif; font-size: {fs:.3}cqh; color: {color}; line-height: 1;",
+                                                        )
+                                                    }
+                                                >
+                                                    {sample.clone()}
+                                                </span>
+                                                // Resize handle
+                                                <div
+                                                    class="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 dark:bg-blue-400 rounded-sm border-2 border-white dark:border-gray-900 shadow-md"
+                                                    style="cursor: nwse-resize; touch-action: none;"
+                                                    on:pointerdown=on_text_resize_pointerdown
+                                                ></div>
+                                            </div>
+                                        }.into_any()
+                                    }}
                                 </div>
                                 <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 text-center bg-gray-50 dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600">
                                     "Front side preview (14cm \u{00d7} 7cm note area)"
@@ -546,13 +846,26 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                             qr_obj.as_object_mut().unwrap()
                                 .insert("overlay".into(), "qr_overlay.png".into());
                         }
-                        let json = serde_json::json!({
+                        let mut json = serde_json::json!({
                             "id": if id.is_empty() { "my_design".to_string() } else { id },
                             "name": if name.is_empty() { "My Design".to_string() } else { name },
                             "front": "front.png",
                             "back": "back.png",
                             "qr": qr_obj,
                         });
+                        if text_enabled.get() {
+                            json.as_object_mut().unwrap().insert(
+                                "amount_text".into(),
+                                serde_json::json!({
+                                    "font_family": text_font.get(),
+                                    "font_url": text_font_url.get(),
+                                    "font_size_pt": text_h.get() * 28.3465,
+                                    "color_hex": text_color.get(),
+                                    "x_offset_cm": text_x.get(),
+                                    "y_offset_cm": text_y.get(),
+                                }),
+                            );
+                        }
                         serde_json::to_string_pretty(&json).unwrap_or_default()
                     }}
                 </pre>

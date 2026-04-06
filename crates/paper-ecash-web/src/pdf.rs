@@ -1,5 +1,21 @@
 use printpdf::*;
 
+pub struct NoteTextConfig {
+    pub font_bytes: Vec<u8>,
+    pub font_size_pt: f32,
+    pub color_rgb: (f32, f32, f32),
+    pub x_offset_cm: f32,
+    pub y_offset_cm: f32,
+}
+
+pub fn parse_hex_color(hex: &str) -> (f32, f32, f32) {
+    let hex = hex.trim_start_matches('#');
+    let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0) as f32 / 255.0;
+    let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0) as f32 / 255.0;
+    let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0) as f32 / 255.0;
+    (r, g, b)
+}
+
 /// A4 dimensions in mm
 const A4_WIDTH_MM: f32 = 210.0;
 const A4_HEIGHT_MM: f32 = 297.0;
@@ -28,6 +44,7 @@ pub fn generate_pdf(
     qr_y_offset_cm: f64,
     qr_size_cm: f64,
     cutting_lines: bool,
+    amount_text: Option<(&NoteTextConfig, &[String])>,
 ) -> anyhow::Result<Vec<u8>> {
     let mut doc = PdfDocument::new("Paper eCash");
     let mut warnings = Vec::new();
@@ -76,6 +93,15 @@ pub fn generate_pdf(
         qr_ids.push(qr_id);
         qr_nat_sizes.push((nat_w, nat_h));
     }
+
+    // Parse and register font if amount text is configured
+    let font_id = if let Some((text_cfg, _)) = &amount_text {
+        let parsed = ParsedFont::from_bytes(&text_cfg.font_bytes, 0, &mut warnings)
+            .ok_or_else(|| anyhow::anyhow!("Failed to parse font"))?;
+        Some(doc.add_font(&parsed))
+    } else {
+        None
+    };
 
     let num_pages = (qr_pngs.len() + NOTES_PER_PAGE - 1) / NOTES_PER_PAGE;
 
@@ -126,6 +152,36 @@ pub fn generate_pdf(
                     ..Default::default()
                 },
             });
+
+            // Amount text
+            if let (Some(fid), Some((text_cfg, texts))) = (&font_id, &amount_text) {
+                if let Some(text) = texts.get(note_idx) {
+                    let (r, g, b) = text_cfg.color_rgb;
+                    let text_x = Pt(Mm(text_cfg.x_offset_cm * 10.0).into_pt().0);
+                    let text_y = Pt(y_bottom.0 + note_h_pt.0 - Mm(text_cfg.y_offset_cm * 10.0).into_pt().0);
+                    front_ops.push(Op::StartTextSection);
+                    front_ops.push(Op::SetFillColor {
+                        col: Color::Rgb(Rgb {
+                            r,
+                            g,
+                            b,
+                            icc_profile: None,
+                        }),
+                    });
+                    front_ops.push(Op::SetTextCursor {
+                        pos: Point { x: text_x, y: text_y },
+                    });
+                    front_ops.push(Op::SetFontSize {
+                        font: fid.clone(),
+                        size: Pt(text_cfg.font_size_pt),
+                    });
+                    front_ops.push(Op::WriteText {
+                        items: vec![TextItem::Text(text.clone())],
+                        font: fid.clone(),
+                    });
+                    front_ops.push(Op::EndTextSection);
+                }
+            }
 
             // Cutting lines
             if cutting_lines {
@@ -219,6 +275,10 @@ pub fn generate_pdf(
         ));
     }
 
-    let pdf_bytes = doc.save(&PdfSaveOptions::default(), &mut warnings);
+    let save_opts = PdfSaveOptions {
+        subset_fonts: true,
+        ..Default::default()
+    };
+    let pdf_bytes = doc.save(&save_opts, &mut warnings);
     Ok(pdf_bytes)
 }

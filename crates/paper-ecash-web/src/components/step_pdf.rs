@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
 use crate::browser;
+use crate::denomination;
 use crate::designs::{self, Design};
 use crate::models::{Issuance, IssuanceStatus};
 use crate::pdf;
@@ -109,6 +110,36 @@ pub fn StepPdf(
                 qr_pngs.push(final_qr);
             }
 
+            // Fetch font and build text config if amount text is set
+            let text_config = if let Some(ref text_cfg) = iss.config.amount_text {
+                status_msg.set("Fetching font...".into());
+                match browser::fetch_image_bytes(&text_cfg.font_url).await {
+                    Ok(font_bytes) => {
+                        let (r, g, b) = pdf::parse_hex_color(&text_cfg.color_hex);
+                        Some(pdf::NoteTextConfig {
+                            font_bytes,
+                            font_size_pt: text_cfg.font_size_pt as f32,
+                            color_rgb: (r, g, b),
+                            x_offset_cm: text_cfg.x_offset_cm as f32,
+                            y_offset_cm: text_cfg.y_offset_cm as f32,
+                        })
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to fetch font, skipping amount text: {e}");
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+            let amount_texts: Vec<String> = if text_config.is_some() {
+                let label = denomination::format_amount_msat(iss.per_note_amount_msat());
+                vec![label; iss.ecash_notes.len()]
+            } else {
+                Vec::new()
+            };
+
             // Generate PDF
             status_msg.set("Generating PDF...".into());
             match pdf::generate_pdf(
@@ -119,6 +150,7 @@ pub fn StepPdf(
                 iss.config.qr_y_offset_cm,
                 iss.config.qr_size_cm,
                 true,
+                text_config.as_ref().map(|cfg| (cfg, amount_texts.as_slice())),
             ) {
                 Ok(pdf_bytes) => {
                     let filename = format!("paper_ecash_{}.pdf", &iss.id[..8]);

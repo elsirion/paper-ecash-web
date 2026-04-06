@@ -6,6 +6,8 @@ mod denomination;
 mod designs;
 #[cfg(target_family = "wasm")]
 mod fedimint;
+#[cfg(target_family = "wasm")]
+mod fonts;
 mod models;
 mod pdf;
 mod qr;
