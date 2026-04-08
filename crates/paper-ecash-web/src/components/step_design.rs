@@ -396,53 +396,6 @@ pub fn StepDesign(
                 }.into_any()
             }}
 
-            <div class="mb-6">
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">"QR Code Settings"</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block mb-1 text-sm text-gray-500 dark:text-gray-400">"X Offset (cm)"</label>
-                        <input
-                            type="number"
-                            step="0.1"
-                            class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                            prop:value=move || qr_x_offset.get().to_string()
-                            on:input=move |ev| {
-                                if let Ok(v) = event_target_value(&ev).parse() {
-                                    qr_x_offset.set(v);
-                                }
-                            }
-                        />
-                    </div>
-                    <div>
-                        <label class="block mb-1 text-sm text-gray-500 dark:text-gray-400">"Y Offset (cm)"</label>
-                        <input
-                            type="number"
-                            step="0.1"
-                            class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                            prop:value=move || qr_y_offset.get().to_string()
-                            on:input=move |ev| {
-                                if let Ok(v) = event_target_value(&ev).parse() {
-                                    qr_y_offset.set(v);
-                                }
-                            }
-                        />
-                    </div>
-                    <div>
-                        <label class="block mb-1 text-sm text-gray-500 dark:text-gray-400">"QR Size (cm)"</label>
-                        <input
-                            type="number"
-                            step="0.1"
-                            class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                            prop:value=move || qr_size.get().to_string()
-                            on:input=move |ev| {
-                                if let Ok(v) = event_target_value(&ev).parse() {
-                                    qr_size.set(v);
-                                }
-                            }
-                        />
-                    </div>
-                </div>
-            </div>
 
             <div class="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
                 <button
