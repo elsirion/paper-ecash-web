@@ -3,6 +3,52 @@ use wasm_bindgen::JsCast;
 
 use crate::browser;
 
+/// Top Google Fonts by popularity. First 20 shown by default, rest searchable.
+pub const GOOGLE_FONTS: &[&str] = &[
+    "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald",
+    "Poppins", "Raleway", "Inter", "Nunito", "Ubuntu",
+    "Playfair Display", "Merriweather", "PT Sans", "Roboto Condensed", "Roboto Mono",
+    "Source Code Pro", "Bebas Neue", "Archivo Black", "Anton", "Bangers",
+    "Noto Sans", "Noto Serif", "Rubik", "Work Sans", "Fira Sans",
+    "Quicksand", "Barlow", "Mulish", "Kanit", "Inconsolata",
+    "Titillium Web", "Heebo", "Libre Baskerville", "Libre Franklin", "Karla",
+    "Manrope", "Josefin Sans", "DM Sans", "Cabin", "Arimo",
+    "Bitter", "Exo 2", "Overpass", "Asap", "IBM Plex Sans",
+    "IBM Plex Mono", "Crimson Text", "Yanone Kaffeesatz", "Abel", "Archivo",
+    "Catamaran", "Signika", "Varela Round", "Questrial", "Rokkitt",
+    "Fjalla One", "Jost", "Mukta", "Hind", "Cairo",
+    "Cormorant Garamond", "Spectral", "Space Grotesk", "Space Mono", "Zilla Slab",
+    "Prompt", "Sarabun", "Public Sans", "Outfit", "Sora",
+    "Lexend", "Plus Jakarta Sans", "Red Hat Display", "Zen Kaku Gothic New", "Nanum Gothic",
+    "Comfortaa", "Pacifico", "Permanent Marker", "Satisfy", "Lobster",
+    "Dancing Script", "Great Vibes", "Caveat", "Shadows Into Light", "Sacramento",
+    "Amatic SC", "Righteous", "Bungee", "Press Start 2P", "VT323",
+    "Silkscreen", "Pixelify Sans", "Share Tech Mono", "JetBrains Mono", "Fira Code",
+    "Source Sans 3", "Noto Sans Mono", "PT Serif", "EB Garamond", "Lora",
+];
+
+/// Inject a Google Fonts CSS link into the document head for preview rendering.
+pub fn inject_font_link(family: &str) {
+    let Some(window) = web_sys::window() else { return };
+    let Some(document) = window.document() else { return };
+    let Some(head) = document.head() else { return };
+    let link_id = format!("gfont-{}", family.replace(' ', "-"));
+    if document.get_element_by_id(&link_id).is_some() {
+        return;
+    }
+    let Ok(link) = document.create_element("link") else { return };
+    let _ = link.set_attribute("id", &link_id);
+    let _ = link.set_attribute("rel", "stylesheet");
+    let _ = link.set_attribute(
+        "href",
+        &format!(
+            "https://fonts.googleapis.com/css2?family={}&display=swap",
+            js_sys::encode_uri_component(family)
+        ),
+    );
+    let _ = head.append_child(&link);
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct FontEntry {
     pub family: String,

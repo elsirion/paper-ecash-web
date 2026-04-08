@@ -54,24 +54,19 @@ export function downloadBlob(bytes, filename, mimeType) {
   }, 100);
 }
 
+/**
+ * Fetch a Google Font as TTF from the Fontsource CDN (via jsdelivr).
+ * printpdf's font parser doesn't support woff2, so we need raw TTF.
+ */
 export async function fetchFontWoff2(family) {
-  const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}`;
-  const cssResp = await fetch(cssUrl);
-  if (!cssResp.ok) {
-    throw new Error(`Failed to fetch font CSS for "${family}": ${cssResp.status}`);
+  const slug = family.toLowerCase().replace(/\s+/g, '-');
+  const url = `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-400-normal.ttf`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch TTF for "${family}": ${resp.status}`);
   }
-  const css = await cssResp.text();
-  const match = css.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2)\)/);
-  if (!match) {
-    throw new Error(`No woff2 URL found in CSS for "${family}"`);
-  }
-  const woff2Url = match[1];
-  const fontResp = await fetch(woff2Url);
-  if (!fontResp.ok) {
-    throw new Error(`Failed to fetch woff2 for "${family}": ${fontResp.status}`);
-  }
-  const buf = await fontResp.arrayBuffer();
-  return { url: woff2Url, bytes: new Uint8Array(buf) };
+  const buf = await resp.arrayBuffer();
+  return { url, bytes: new Uint8Array(buf) };
 }
 
 export async function fetchDesignImage(url) {

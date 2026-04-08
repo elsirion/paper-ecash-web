@@ -11,31 +11,6 @@ const NOTE_WIDTH_CM: f64 = 14.0;
 const NOTE_HEIGHT_CM: f64 = 7.0;
 const MIN_QR_SIZE_CM: f64 = 0.5;
 
-/// Top Google Fonts by popularity. First 20 shown by default, rest searchable.
-const GOOGLE_FONTS: &[&str] = &[
-    "Roboto", "Open Sans", "Lato", "Montserrat", "Oswald",
-    "Poppins", "Raleway", "Inter", "Nunito", "Ubuntu",
-    "Playfair Display", "Merriweather", "PT Sans", "Roboto Condensed", "Roboto Mono",
-    "Source Code Pro", "Bebas Neue", "Archivo Black", "Anton", "Bangers",
-    // ---
-    "Noto Sans", "Noto Serif", "Rubik", "Work Sans", "Fira Sans",
-    "Quicksand", "Barlow", "Mulish", "Kanit", "Inconsolata",
-    "Titillium Web", "Heebo", "Libre Baskerville", "Libre Franklin", "Karla",
-    "Manrope", "Josefin Sans", "DM Sans", "Cabin", "Arimo",
-    "Bitter", "Exo 2", "Overpass", "Asap", "IBM Plex Sans",
-    "IBM Plex Mono", "Crimson Text", "Yanone Kaffeesatz", "Abel", "Archivo",
-    "Catamaran", "Signika", "Varela Round", "Questrial", "Rokkitt",
-    "Fjalla One", "Jost", "Mukta", "Hind", "Cairo",
-    "Cormorant Garamond", "Spectral", "Space Grotesk", "Space Mono", "Zilla Slab",
-    "Prompt", "Sarabun", "Public Sans", "Outfit", "Sora",
-    "Lexend", "Plus Jakarta Sans", "Red Hat Display", "Zen Kaku Gothic New", "Nanum Gothic",
-    "Comfortaa", "Pacifico", "Permanent Marker", "Satisfy", "Lobster",
-    "Dancing Script", "Great Vibes", "Caveat", "Shadows Into Light", "Sacramento",
-    "Amatic SC", "Righteous", "Bungee", "Press Start 2P", "VT323",
-    "Silkscreen", "Pixelify Sans", "Share Tech Mono", "JetBrains Mono", "Fira Code",
-    "Source Sans 3", "Noto Sans Mono", "PT Serif", "EB Garamond", "Lora",
-];
-
 fn read_file_to_signal(signal: RwSignal<Option<String>>) -> impl Fn(web_sys::Event) + 'static {
     move |ev: web_sys::Event| {
         let Some(target) = ev.target() else { return };
@@ -67,29 +42,23 @@ fn make_sample_qr_url() -> String {
             parts.push(&array.buffer());
             let opts = web_sys::BlobPropertyBag::new();
             opts.set_type("image/png");
-            web_sys::Blob::new_with_u8_array_sequence_and_options(
-                &parts,
-                &opts,
-            )
-            .ok()
-            .and_then(|b| web_sys::Url::create_object_url_with_blob(&b).ok())
-            .unwrap_or_default()
+            web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &opts)
+                .ok()
+                .and_then(|b| web_sys::Url::create_object_url_with_blob(&b).ok())
+                .unwrap_or_default()
         }
         Err(_) => String::new(),
     }
 }
 
-/// Clamp a value between min and max.
 fn clamp(v: f64, min: f64, max: f64) -> f64 {
     v.max(min).min(max)
 }
 
-/// Round to 2 decimal places for clean cm values.
 fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
 
-/// What interaction the user started on the QR overlay.
 #[derive(Clone, Copy, PartialEq)]
 enum DragMode {
     Move,
@@ -98,39 +67,30 @@ enum DragMode {
     TextResize,
 }
 
-/// Inject a Google Fonts CSS link into the document head for preview rendering.
-fn inject_font_link(family: &str) {
-    let Some(window) = web_sys::window() else { return };
-    let Some(document) = window.document() else { return };
-    let Some(head) = document.head() else { return };
-    let link_id = format!("gfont-{}", family.replace(' ', "-"));
-    if document.get_element_by_id(&link_id).is_some() {
-        return;
-    }
-    let Ok(link) = document.create_element("link") else { return };
-    let _ = link.set_attribute("id", &link_id);
-    let _ = link.set_attribute("rel", "stylesheet");
-    let _ = link.set_attribute(
-        "href",
-        &format!(
-            "https://fonts.googleapis.com/css2?family={}&display=swap",
-            js_sys::encode_uri_component(family)
-        ),
-    );
-    let _ = head.append_child(&link);
-}
-
 #[component]
 pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView {
     let design_id = RwSignal::new(String::new());
     let design_name = RwSignal::new(String::new());
     let id_manually_edited = RwSignal::new(false);
     let front_url = RwSignal::new(Option::<String>::None);
+    let back_url = RwSignal::new(Option::<String>::None);
     let overlay_url = RwSignal::new(Option::<String>::None);
     let qr_x = RwSignal::new(0.0f64);
     let qr_y = RwSignal::new(0.0f64);
     let qr_size = RwSignal::new(7.0f64);
     let ec_level = RwSignal::new(String::from("M"));
+
+    // Amount text signals (placement/style, NOT content)
+    let text_enabled = RwSignal::new(false);
+    let text_font = RwSignal::new(String::from("Roboto"));
+    let text_font_search = RwSignal::new(String::new());
+    let text_color = RwSignal::new(String::from("#000000"));
+    let text_x = RwSignal::new(1.0f64);
+    let text_y = RwSignal::new(0.5f64);
+    let text_w = RwSignal::new(4.0f64);
+    let text_h = RwSignal::new(1.0f64);
+    let show_font_dropdown = RwSignal::new(false);
+    let text_font_url = RwSignal::new(String::new());
 
     // Drag state
     let dragging = RwSignal::new(Option::<DragMode>::None);
@@ -145,23 +105,11 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
     let drag_start_text_h = RwSignal::new(0.0f64);
     let preview_ref = NodeRef::<leptos::html::Div>::new();
 
-    // Amount text signals
-    let text_enabled = RwSignal::new(false);
-    let text_font = RwSignal::new(String::from("Roboto"));
-    let text_font_search = RwSignal::new(String::new());
-    let text_color = RwSignal::new(String::from("#000000"));
-    let text_x = RwSignal::new(1.0f64);
-    let text_y = RwSignal::new(0.5f64);
-    let text_w = RwSignal::new(4.0f64);
-    let text_h = RwSignal::new(1.0f64);
-    let text_sample = RwSignal::new(String::from("1000 sats"));
-    let show_font_dropdown = RwSignal::new(false);
-    let text_font_url = RwSignal::new(String::new());
-
     let sample_qr_url = make_sample_qr_url();
 
     let on_front_change = read_file_to_signal(front_url);
-    // Overlay change handler with auto EC upgrade
+    let on_back_change = read_file_to_signal(back_url);
+
     let on_overlay_change = move |ev: web_sys::Event| {
         let Some(target) = ev.target() else { return };
         let input: web_sys::HtmlInputElement = target.unchecked_into();
@@ -175,7 +123,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         let cb = Closure::wrap(Box::new(move |_: web_sys::ProgressEvent| {
             if let Ok(result) = reader2.result() {
                 overlay_url.set(result.as_string());
-                // Auto-upgrade EC when overlay is added
                 if ec_level.get_untracked() == "M" {
                     ec_level.set("Q".into());
                 }
@@ -190,12 +137,11 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         overlay_url.set(None);
     };
 
-    // Font selection handler
     let select_font = move |family: String| {
         text_font.set(family.clone());
         text_font_search.set(family.clone());
         show_font_dropdown.set(false);
-        inject_font_link(&family);
+        fonts::inject_font_link(&family);
         wasm_bindgen_futures::spawn_local(async move {
             match fonts::fetch_font_woff2(&family).await {
                 Ok((url, _)) => text_font_url.set(url),
@@ -204,13 +150,13 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         });
     };
 
-    // QR position as percentage of note area
+    // Load the default font on mount so font_url is never empty.
+    select_font(text_font.get_untracked());
+
     let qr_left_pct = move || qr_x.get() / NOTE_WIDTH_CM * 100.0;
     let qr_top_pct = move || qr_y.get() / NOTE_HEIGHT_CM * 100.0;
     let qr_w_pct = move || qr_size.get() / NOTE_WIDTH_CM * 100.0;
     let qr_h_pct = move || qr_size.get() / NOTE_HEIGHT_CM * 100.0;
-
-    // --- Drag handlers ---
 
     let on_qr_pointerdown = move |ev: web_sys::PointerEvent| {
         ev.prevent_default();
@@ -272,14 +218,9 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
     };
 
     let on_preview_pointermove = move |ev: web_sys::PointerEvent| {
-        let Some(mode) = dragging.get_untracked() else {
-            return;
-        };
+        let Some(mode) = dragging.get_untracked() else { return };
         ev.prevent_default();
-
-        let Some(el) = preview_ref.get() else {
-            return;
-        };
+        let Some(el) = preview_ref.get() else { return };
         let el_ref: &web_sys::Element = el.as_ref();
         let rect = el_ref.get_bounding_client_rect();
         let container_w = rect.width();
@@ -287,13 +228,10 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         if container_w == 0.0 || container_h == 0.0 {
             return;
         }
-
         let dx_px = ev.client_x() as f64 - drag_start_x.get_untracked();
         let dy_px = ev.client_y() as f64 - drag_start_y.get_untracked();
-
         let dx_cm = dx_px / container_w * NOTE_WIDTH_CM;
         let dy_cm = dy_px / container_h * NOTE_HEIGHT_CM;
-
         match mode {
             DragMode::Move => {
                 let start_x = drag_start_qr_x.get_untracked();
@@ -344,6 +282,29 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         !design_id.get().trim().is_empty()
             && !design_name.get().trim().is_empty()
             && front_url.get().is_some()
+            && back_url.get().is_some()
+    };
+
+    // Build the amount_text TextConfig (without .text — that's set at issuance time)
+    let build_amount_text = move || -> Option<crate::models::TextConfig> {
+        if !text_enabled.get_untracked() {
+            return None;
+        }
+        let box_h = text_h.get_untracked();
+        let box_w = text_w.get_untracked();
+        // Font size is 75% of the box height (converted cm → pt)
+        let font_size_pt = box_h * 0.75 * 28.3465;
+        Some(crate::models::TextConfig {
+            font_family: text_font.get_untracked(),
+            font_url: text_font_url.get_untracked(),
+            font_size_pt,
+            color_hex: text_color.get_untracked(),
+            x_offset_cm: text_x.get_untracked(),
+            y_offset_cm: text_y.get_untracked(),
+            width_cm: box_w,
+            height_cm: box_h,
+            text: None,
+        })
     };
 
     let build_design_json = move || -> Option<String> {
@@ -352,21 +313,16 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         if id.is_empty() || name.is_empty() {
             return None;
         }
-
         let mut qr_obj = serde_json::json!({
             "x_offset_cm": qr_x.get_untracked(),
             "y_offset_cm": qr_y.get_untracked(),
             "size_cm": qr_size.get_untracked(),
             "error_correction": ec_level.get_untracked(),
         });
-
         if overlay_url.get_untracked().is_some() {
-            qr_obj
-                .as_object_mut()
-                .unwrap()
+            qr_obj.as_object_mut().unwrap()
                 .insert("overlay".into(), "qr_overlay.png".into());
         }
-
         let mut json = serde_json::json!({
             "id": id,
             "name": name,
@@ -374,21 +330,19 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
             "back": "back.png",
             "qr": qr_obj,
         });
-
         if text_enabled.get_untracked() {
-            json.as_object_mut().unwrap().insert(
-                "amount_text".into(),
-                serde_json::json!({
-                    "font_family": text_font.get_untracked(),
-                    "font_url": text_font_url.get_untracked(),
-                    "font_size_pt": text_h.get_untracked() * 28.3465,
-                    "color_hex": text_color.get_untracked(),
-                    "x_offset_cm": text_x.get_untracked(),
-                    "y_offset_cm": text_y.get_untracked(),
-                }),
-            );
+            let box_h = text_h.get_untracked();
+            json.as_object_mut().unwrap().insert("amount_text".into(), serde_json::json!({
+                "font_family": text_font.get_untracked(),
+                "font_url": text_font_url.get_untracked(),
+                "font_size_pt": box_h * 0.75 * 28.3465,
+                "color_hex": text_color.get_untracked(),
+                "x_offset_cm": text_x.get_untracked(),
+                "y_offset_cm": text_y.get_untracked(),
+                "width_cm": text_w.get_untracked(),
+                "height_cm": box_h,
+            }));
         }
-
         Some(serde_json::to_string_pretty(&json).unwrap_or_default())
     };
 
@@ -396,6 +350,51 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
         if let Some(json_str) = build_design_json() {
             browser::download_file(json_str.as_bytes(), "design.json", "application/json");
         }
+    };
+
+    let build_local_design = move || -> Option<crate::designs::Design> {
+        let id = design_id.get_untracked().trim().to_string();
+        let name = design_name.get_untracked().trim().to_string();
+        let front = front_url.get_untracked()?;
+        let back = back_url.get_untracked()?;
+        if id.is_empty() || name.is_empty() {
+            return None;
+        }
+        Some(crate::designs::Design {
+            id,
+            name,
+            front_url: front,
+            back_url: back,
+            qr_x_offset_cm: qr_x.get_untracked(),
+            qr_y_offset_cm: qr_y.get_untracked(),
+            qr_size_cm: qr_size.get_untracked(),
+            qr_error_correction: match ec_level.get_untracked().as_str() {
+                "Q" => QrErrorCorrection::Q,
+                "H" => QrErrorCorrection::H,
+                _ => QrErrorCorrection::M,
+            },
+            qr_overlay_url: overlay_url.get_untracked(),
+            amount_text: build_amount_text(),
+        })
+    };
+
+    let on_back = std::sync::Arc::new(on_back);
+    let on_back_use = on_back.clone();
+    let on_back_btn = on_back.clone();
+
+    let save_and_use = move |_| {
+        if let Some(design) = build_local_design() {
+            crate::storage::save_local_design(&design);
+            on_back_use();
+        }
+    };
+
+    let can_save = move || {
+        !design_id.get().trim().is_empty()
+            && !design_name.get().trim().is_empty()
+            && front_url.get().is_some()
+            && back_url.get().is_some()
+            && (!text_enabled.get() || !text_font_url.get().is_empty())
     };
 
     let qr_cursor = move || {
@@ -462,6 +461,21 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                             on:change=on_front_change
                         />
                         {move || front_url.get().map(|url| view! {
+                            <img src=url class="h-10 rounded border border-gray-300 dark:border-gray-600" />
+                        })}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Back Image"</label>
+                    <div class="flex items-center gap-3">
+                        <input
+                            type="file"
+                            accept="image/png,image/jpeg"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:text-gray-400 dark:file:bg-blue-900/30 dark:file:text-blue-400"
+                            on:change=on_back_change
+                        />
+                        {move || back_url.get().map(|url| view! {
                             <img src=url class="h-10 rounded border border-gray-300 dark:border-gray-600" />
                         })}
                     </div>
@@ -587,13 +601,13 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                         type="checkbox"
                         class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600"
                         prop:checked=move || text_enabled.get()
-                        on:change=move |ev| {
-                            let checked = event_target_checked(&ev);
-                            text_enabled.set(checked);
-                        }
+                        on:change=move |ev| text_enabled.set(event_target_checked(&ev))
                     />
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">"Amount Text"</h3>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">"Amount Text Placement"</h3>
                 </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    "Define where amount text will appear. The actual text is entered when selecting this design."
+                </p>
 
                 {move || {
                     if !text_enabled.get() {
@@ -603,11 +617,11 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                     view! {
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             // Font picker
-                            <div class="col-span-2 relative">
+                            <div class="col-span-3 relative">
                                 <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Font"</label>
                                 <input
                                     type="text"
-                                    placeholder="Search Google Fonts..."
+                                    placeholder="Search fonts..."
                                     class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     prop:value=move || text_font_search.get()
                                     on:input=move |ev| {
@@ -623,12 +637,11 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                     let search = text_font_search.get().to_lowercase();
                                     let has_search = !search.trim().is_empty();
                                     let entries: Vec<&str> = if has_search {
-                                        GOOGLE_FONTS.iter()
-                                            .copied()
+                                        fonts::GOOGLE_FONTS.iter().copied()
                                             .filter(|f| f.to_lowercase().contains(&search))
                                             .collect()
                                     } else {
-                                        GOOGLE_FONTS.iter().copied().take(20).collect()
+                                        fonts::GOOGLE_FONTS.iter().copied().take(20).collect()
                                     };
                                     if entries.is_empty() {
                                         return view! {
@@ -637,9 +650,8 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                             </div>
                                         }.into_any();
                                     }
-                                    // Inject font CSS links for preview
                                     for family in &entries {
-                                        inject_font_link(family);
+                                        fonts::inject_font_link(family);
                                     }
                                     let select_font_inner = select_font_clone.clone();
                                     let heading = if has_search { "Search results" } else { "Popular fonts" };
@@ -683,20 +695,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                     on:input=move |ev| text_color.set(event_target_value(&ev))
                                 />
                             </div>
-
-                            // Sample text
-                            <div class="col-span-2">
-                                <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Sample Text"</label>
-                                <input
-                                    type="text"
-                                    class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    prop:value=move || text_sample.get()
-                                    on:input=move |ev| text_sample.set(event_target_value(&ev))
-                                />
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    "Drag the text box in the preview to reposition. Drag the corner handle to resize."
-                                </p>
-                            </div>
                         </div>
                     }.into_any()
                 }}
@@ -723,7 +721,7 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                         class="absolute inset-0 w-full h-full object-fill pointer-events-none"
                                         draggable="false"
                                     />
-                                    // QR code overlay — draggable
+                                    // QR code overlay
                                     <div
                                         class="absolute border-2 border-dashed border-blue-500 dark:border-blue-400 overflow-visible"
                                         style=move || format!(
@@ -737,7 +735,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                             class="w-full h-full object-fill qr-image pointer-events-none"
                                             draggable="false"
                                         />
-                                        // Overlay icon centered on QR
                                         {move || overlay_url.get().map(|url| view! {
                                             <img
                                                 src=url
@@ -745,7 +742,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                                 draggable="false"
                                             />
                                         })}
-                                        // Resize handle (bottom-right corner)
                                         <div
                                             class="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 dark:bg-blue-400 rounded-sm border-2 border-white dark:border-gray-900 shadow-md"
                                             style="cursor: nwse-resize; touch-action: none;"
@@ -763,7 +759,6 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                         let y_pct = text_y.get() / NOTE_HEIGHT_CM * 100.0;
                                         let w_pct = text_w.get() / NOTE_WIDTH_CM * 100.0;
                                         let h_pct = text_h.get() / NOTE_HEIGHT_CM * 100.0;
-                                        let sample = text_sample.get();
                                         view! {
                                             <div
                                                 class="absolute border-2 border-dashed border-blue-500 dark:border-blue-400 overflow-hidden select-none flex items-center justify-center"
@@ -781,9 +776,8 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                                                         )
                                                     }
                                                 >
-                                                    {sample.clone()}
+                                                    "1000 sats"
                                                 </span>
-                                                // Resize handle
                                                 <div
                                                     class="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 dark:bg-blue-400 rounded-sm border-2 border-white dark:border-gray-900 shadow-md"
                                                     style="cursor: nwse-resize; touch-action: none;"
@@ -808,66 +802,29 @@ pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView
                         }.into_any()
                     }
                 }}
-
-            </div>
-
-            // Generated JSON preview
-            <div class="mb-6">
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">"design.json"</h3>
-                <pre class="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-xs text-gray-800 dark:text-gray-300 overflow-x-auto font-mono">
-                    {move || {
-                        let id = design_id.get();
-                        let name = design_name.get();
-                        let has_overlay = overlay_url.get().is_some();
-                        let mut qr_obj = serde_json::json!({
-                            "x_offset_cm": qr_x.get(),
-                            "y_offset_cm": qr_y.get(),
-                            "size_cm": qr_size.get(),
-                            "error_correction": ec_level.get(),
-                        });
-                        if has_overlay {
-                            qr_obj.as_object_mut().unwrap()
-                                .insert("overlay".into(), "qr_overlay.png".into());
-                        }
-                        let mut json = serde_json::json!({
-                            "id": if id.is_empty() { "my_design".to_string() } else { id },
-                            "name": if name.is_empty() { "My Design".to_string() } else { name },
-                            "front": "front.png",
-                            "back": "back.png",
-                            "qr": qr_obj,
-                        });
-                        if text_enabled.get() {
-                            json.as_object_mut().unwrap().insert(
-                                "amount_text".into(),
-                                serde_json::json!({
-                                    "font_family": text_font.get(),
-                                    "font_url": text_font_url.get(),
-                                    "font_size_pt": text_h.get() * 28.3465,
-                                    "color_hex": text_color.get(),
-                                    "x_offset_cm": text_x.get(),
-                                    "y_offset_cm": text_y.get(),
-                                }),
-                            );
-                        }
-                        serde_json::to_string_pretty(&json).unwrap_or_default()
-                    }}
-                </pre>
             </div>
 
             // Actions
             <div class="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
                 <button
                     class="px-5 py-2.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors"
-                    on:click=move |_| on_back()
+                    on:click=move |_| on_back_btn()
                 >
                     "Back"
                 </button>
                 <button
-                    class="px-5 py-2.5 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    class="px-5 py-2.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     disabled=move || !can_download()
                     on:click=download_json
                 >
                     "Download design.json"
+                </button>
+                <button
+                    class="px-5 py-2.5 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    disabled=move || !can_save()
+                    on:click=save_and_use
+                >
+                    "Save & Use"
                 </button>
             </div>
         </div>

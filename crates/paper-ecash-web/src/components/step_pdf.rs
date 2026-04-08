@@ -1,7 +1,6 @@
 use leptos::prelude::*;
 
 use crate::browser;
-use crate::denomination;
 use crate::designs::{self, Design};
 use crate::models::{Issuance, IssuanceStatus};
 use crate::pdf;
@@ -122,6 +121,8 @@ pub fn StepPdf(
                             color_rgb: (r, g, b),
                             x_offset_cm: text_cfg.x_offset_cm as f32,
                             y_offset_cm: text_cfg.y_offset_cm as f32,
+                            width_cm: text_cfg.width_cm as f32,
+                            height_cm: text_cfg.height_cm as f32,
                         })
                     }
                     Err(e) => {
@@ -134,7 +135,12 @@ pub fn StepPdf(
             };
 
             let amount_texts: Vec<String> = if text_config.is_some() {
-                let label = denomination::format_amount_msat(iss.per_note_amount_msat());
+                let label = iss
+                    .config
+                    .amount_text
+                    .as_ref()
+                    .and_then(|t| t.text.clone())
+                    .unwrap_or_default();
                 vec![label; iss.ecash_notes.len()]
             } else {
                 Vec::new()

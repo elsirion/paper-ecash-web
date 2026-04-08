@@ -6,8 +6,25 @@ pub struct TextConfig {
     pub font_url: String,
     pub font_size_pt: f64,
     pub color_hex: String,
+    /// Top-left of the text box, in cm from the top-left of the note.
     pub x_offset_cm: f64,
     pub y_offset_cm: f64,
+    /// Box dimensions for centering. Text is drawn centered within this box.
+    #[serde(default = "default_width_cm")]
+    pub width_cm: f64,
+    #[serde(default = "default_height_cm")]
+    pub height_cm: f64,
+    /// Literal text to render. If None, falls back to formatted note amount.
+    #[serde(default)]
+    pub text: Option<String>,
+}
+
+fn default_width_cm() -> f64 {
+    4.0
+}
+
+fn default_height_cm() -> f64 {
+    1.0
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

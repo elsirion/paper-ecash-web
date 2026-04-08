@@ -6,6 +6,8 @@ pub struct NoteTextConfig {
     pub color_rgb: (f32, f32, f32),
     pub x_offset_cm: f32,
     pub y_offset_cm: f32,
+    pub width_cm: f32,
+    pub height_cm: f32,
 }
 
 pub fn parse_hex_color(hex: &str) -> (f32, f32, f32) {
@@ -95,12 +97,13 @@ pub fn generate_pdf(
     }
 
     // Parse and register font if amount text is configured
-    let font_id = if let Some((text_cfg, _)) = &amount_text {
+    let (font_id, parsed_font) = if let Some((text_cfg, _)) = &amount_text {
         let parsed = ParsedFont::from_bytes(&text_cfg.font_bytes, 0, &mut warnings)
             .ok_or_else(|| anyhow::anyhow!("Failed to parse font"))?;
-        Some(doc.add_font(&parsed))
+        let id = doc.add_font(&parsed);
+        (Some(id), Some(parsed))
     } else {
-        None
+        (None, None)
     };
 
     let num_pages = (qr_pngs.len() + NOTES_PER_PAGE - 1) / NOTES_PER_PAGE;
@@ -154,11 +157,37 @@ pub fn generate_pdf(
             });
 
             // Amount text
-            if let (Some(fid), Some((text_cfg, texts))) = (&font_id, &amount_text) {
+            if let (Some(fid), Some(parsed), Some((text_cfg, texts))) =
+                (&font_id, &parsed_font, &amount_text)
+            {
                 if let Some(text) = texts.get(note_idx) {
                     let (r, g, b) = text_cfg.color_rgb;
-                    let text_x = Pt(Mm(text_cfg.x_offset_cm * 10.0).into_pt().0);
-                    let text_y = Pt(y_bottom.0 + note_h_pt.0 - Mm(text_cfg.y_offset_cm * 10.0).into_pt().0);
+                    // Box top-left (PDF coords: y grows upward from bottom)
+                    let box_x_pt = Mm(text_cfg.x_offset_cm * 10.0).into_pt().0;
+                    let box_top_pt = y_bottom.0 + note_h_pt.0
+                        - Mm(text_cfg.y_offset_cm * 10.0).into_pt().0;
+                    let box_w_pt = Mm(text_cfg.width_cm * 10.0).into_pt().0;
+                    let box_h_pt = Mm(text_cfg.height_cm * 10.0).into_pt().0;
+
+                    // Compute text width in pt using glyph advances
+                    let upm = parsed.font_metrics.units_per_em as f32;
+                    let mut text_width_units: f32 = 0.0;
+                    for ch in text.chars() {
+                        if let Some(gid) = parsed.lookup_glyph_index(ch as u32) {
+                            text_width_units += parsed.get_horizontal_advance(gid) as f32;
+                        } else if let Some(sw) = parsed.get_space_width() {
+                            text_width_units += sw as f32;
+                        }
+                    }
+                    let text_width_pt = text_width_units * text_cfg.font_size_pt / upm;
+
+                    // Horizontal centering within the box
+                    let cursor_x = box_x_pt + (box_w_pt - text_width_pt) / 2.0;
+                    // Vertical centering: baseline = box_center_y - (ascent+descent)/2 + descent
+                    // Simpler: baseline sits at box_bottom + (box_h - font_size) / 2 + descent_offset
+                    // Approximation: baseline = box_top - box_h/2 - font_size_pt * 0.35
+                    let cursor_y = box_top_pt - box_h_pt / 2.0 - text_cfg.font_size_pt * 0.35;
+
                     front_ops.push(Op::StartTextSection);
                     front_ops.push(Op::SetFillColor {
                         col: Color::Rgb(Rgb {
@@ -169,7 +198,7 @@ pub fn generate_pdf(
                         }),
                     });
                     front_ops.push(Op::SetTextCursor {
-                        pos: Point { x: text_x, y: text_y },
+                        pos: Point { x: Pt(cursor_x), y: Pt(cursor_y) },
                     });
                     front_ops.push(Op::SetFontSize {
                         font: fid.clone(),

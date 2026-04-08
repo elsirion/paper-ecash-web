@@ -61,6 +61,9 @@ pub fn Wizard(
     let qr_size = RwSignal::new(7.0f64);
     let qr_ec = RwSignal::new(QrErrorCorrection::M);
 
+    // Amount text: only the literal text content. Placement/font come from the design.
+    let text_sample = RwSignal::new(String::new());
+
     // If resuming, load the issuance and set signals + step
     if let Some(id) = &issuance_id {
         if let Some(existing) = storage::load_issuance(id) {
@@ -83,16 +86,27 @@ pub fn Wizard(
         }
     }
 
-    let build_config = move || IssuanceConfig {
-        federation_invite: invite_code.get_untracked(),
-        design_id: design_id.get_untracked(),
-        denominations_msat: denominations_msat.get_untracked(),
-        note_count: note_count.get_untracked(),
-        qr_x_offset_cm: qr_x_offset.get_untracked(),
-        qr_y_offset_cm: qr_y_offset.get_untracked(),
-        qr_size_cm: qr_size.get_untracked(),
-        qr_error_correction: qr_ec.get_untracked(),
-        amount_text: None,
+    let build_config = move || {
+        let did = design_id.get_untracked();
+        // Clone the design's amount_text and override its text with the user's input
+        let amount_text = crate::designs::get_design(&designs.get_untracked(), &did)
+            .and_then(|d| d.amount_text)
+            .map(|mut at| {
+                let sample = text_sample.get_untracked();
+                at.text = if sample.trim().is_empty() { None } else { Some(sample) };
+                at
+            });
+        IssuanceConfig {
+            federation_invite: invite_code.get_untracked(),
+            design_id: did,
+            denominations_msat: denominations_msat.get_untracked(),
+            note_count: note_count.get_untracked(),
+            qr_x_offset_cm: qr_x_offset.get_untracked(),
+            qr_y_offset_cm: qr_y_offset.get_untracked(),
+            qr_size_cm: qr_size.get_untracked(),
+            qr_error_correction: qr_ec.get_untracked(),
+            amount_text,
+        }
     };
 
     let step_names = [
@@ -150,6 +164,7 @@ pub fn Wizard(
                                     qr_y_offset=qr_y_offset
                                     qr_size=qr_size
                                     qr_ec=qr_ec
+                                    text_sample=text_sample
                                     on_next=move || step.set(WizardStep::Denomination)
                                     on_back=move || step.set(WizardStep::Federation)
                                 />

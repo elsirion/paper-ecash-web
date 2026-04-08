@@ -12,7 +12,7 @@ pub struct DesignSource {
     pub base_url: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Design {
     pub id: String,
     pub name: String,
