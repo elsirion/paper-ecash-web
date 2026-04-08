@@ -1,9 +1,18 @@
 use leptos::prelude::*;
 
+use crate::browser;
 use crate::designs::{self, Design, DesignSource, DEFAULT_DESIGNS_URL};
 use crate::fonts;
 use crate::models::QrErrorCorrection;
+use crate::qr;
 use crate::storage;
+
+fn make_sample_qr_url(ec: QrErrorCorrection) -> String {
+    match qr::generate_qr_png_white(qr::SAMPLE_QR_DATA, ec, 4) {
+        Ok(png) => browser::png_object_url(&png),
+        Err(_) => String::new(),
+    }
+}
 
 const LOCAL_SOURCE: &str = "local:";
 const NOTE_WIDTH_CM: f64 = 14.0;
@@ -338,6 +347,8 @@ pub fn StepDesign(
                 let qr_top = qr_y / NOTE_HEIGHT_CM * 100.0;
                 let qr_w = qr_sz / NOTE_WIDTH_CM * 100.0;
                 let qr_h = qr_sz / NOTE_HEIGHT_CM * 100.0;
+                let sample_qr = make_sample_qr_url(design.qr_error_correction);
+                let overlay = design.qr_overlay_url.clone();
                 view! {
                     <div class="mb-6">
                         <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">"Preview"</h3>
@@ -352,12 +363,25 @@ pub fn StepDesign(
                                     draggable="false"
                                 />
                                 <div
-                                    class="absolute border border-dashed border-gray-400 dark:border-gray-500 pointer-events-none"
+                                    class="absolute pointer-events-none"
                                     style=format!(
                                         "left: {:.2}%; top: {:.2}%; width: {:.2}%; height: {:.2}%;",
                                         qr_left, qr_top, qr_w, qr_h
                                     )
-                                ></div>
+                                >
+                                    <img
+                                        src=sample_qr
+                                        class="w-full h-full object-fill"
+                                        draggable="false"
+                                    />
+                                    {overlay.map(|url| view! {
+                                        <img
+                                            src=url
+                                            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[20%] h-[20%] object-contain"
+                                            draggable="false"
+                                        />
+                                    })}
+                                </div>
                                 {amount_text.as_ref().map(|at| {
                                     let font = at.font_family.clone();
                                     let color = at.color_hex.clone();

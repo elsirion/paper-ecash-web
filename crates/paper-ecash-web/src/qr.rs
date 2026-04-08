@@ -3,6 +3,10 @@ use qrcode::QrCode;
 
 use crate::models::QrErrorCorrection;
 
+/// A realistic ~220-byte sample payload for preview QR codes, matching the
+/// typical size of an ecash note so preview density reflects the real output.
+pub const SAMPLE_QR_DATA: &str = "fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6ct5d9hxgmmjv9kx7pqdq4ux6t5vdhk6m0d4hjqfurvx6z5rn8s28fc2fnd40krnh34t3scp7lypl5y6r7x6qlzcgpaq3aq8vqdmqmv2c3tkjqp50phwtsyvfwn5ylh9uz26a9tjnr0abcdefghijklmnopqrstuvwx";
+
 /// Generate a QR code as PNG bytes with transparent background.
 /// Generate a QR code as PNG bytes with transparent background (for PDF overlay).
 pub fn generate_qr_png(

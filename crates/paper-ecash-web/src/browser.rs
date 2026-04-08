@@ -63,6 +63,19 @@ pub fn download_file(bytes: &[u8], filename: &str, mime_type: &str) {
     download_blob_js(bytes, filename, mime_type);
 }
 
+/// Create an object URL for the given PNG bytes.
+pub fn png_object_url(png: &[u8]) -> String {
+    let array = js_sys::Uint8Array::from(png);
+    let parts = js_sys::Array::new();
+    parts.push(&array.buffer());
+    let opts = web_sys::BlobPropertyBag::new();
+    opts.set_type("image/png");
+    web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &opts)
+        .ok()
+        .and_then(|b| web_sys::Url::create_object_url_with_blob(&b).ok())
+        .unwrap_or_default()
+}
+
 pub async fn fetch_image_bytes(url: &str) -> anyhow::Result<Vec<u8>> {
     let promise = fetch_design_image(url).map_err(js_error)?;
     let value = wasm_bindgen_futures::JsFuture::from(promise)

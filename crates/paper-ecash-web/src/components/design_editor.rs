@@ -34,19 +34,8 @@ fn read_file_to_signal(signal: RwSignal<Option<String>>) -> impl Fn(web_sys::Eve
 }
 
 fn make_sample_qr_url() -> String {
-    let sample = "fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6ct5d9hxgmmjv9kx7pqdsample";
-    match qr::generate_qr_png_white(sample, QrErrorCorrection::M, 6) {
-        Ok(png) => {
-            let array = js_sys::Uint8Array::from(&png[..]);
-            let parts = js_sys::Array::new();
-            parts.push(&array.buffer());
-            let opts = web_sys::BlobPropertyBag::new();
-            opts.set_type("image/png");
-            web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &opts)
-                .ok()
-                .and_then(|b| web_sys::Url::create_object_url_with_blob(&b).ok())
-                .unwrap_or_default()
-        }
+    match qr::generate_qr_png_white(qr::SAMPLE_QR_DATA, QrErrorCorrection::M, 4) {
+        Ok(png) => browser::png_object_url(&png),
         Err(_) => String::new(),
     }
 }
