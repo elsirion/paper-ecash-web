@@ -1,136 +1,114 @@
-use std::sync::Arc;
-
 use leptos::prelude::*;
 
-use crate::models::Issuance;
+use crate::designs::{self, Design, DesignSource, DEFAULT_DESIGNS_URL};
 use crate::storage;
+
+const LOCAL_SOURCE: &str = "local:";
+
+type SourceGroup = (DesignSource, Vec<Design>);
 
 #[component]
 pub fn Landing(
     on_new: impl Fn() + Send + Sync + 'static,
-    on_resume: impl Fn(String) + Send + Sync + 'static,
 ) -> impl IntoView {
-    let issuances = RwSignal::new(storage::load_issuances());
-    let on_resume = Arc::new(on_resume);
+    let source_groups: RwSignal<Vec<SourceGroup>> = RwSignal::new(Vec::new());
+    let loading = RwSignal::new(false);
 
-    let delete_issuance = move |id: String| {
-        storage::delete_issuance(&id);
-        issuances.set(storage::load_issuances());
-    };
+    // Load all sources on mount
+    loading.set(true);
+    wasm_bindgen_futures::spawn_local(async move {
+        let mut groups: Vec<SourceGroup> = Vec::new();
+
+        let default_source = DesignSource {
+            name: "Default".into(),
+            base_url: DEFAULT_DESIGNS_URL.into(),
+        };
+        if let Ok(d) = designs::fetch_designs_from(DEFAULT_DESIGNS_URL).await {
+            groups.push((default_source, d));
+        }
+
+        let local_designs = storage::load_local_designs();
+        if !local_designs.is_empty() {
+            groups.push((
+                DesignSource {
+                    name: "Local (from Design Editor)".into(),
+                    base_url: LOCAL_SOURCE.into(),
+                },
+                local_designs,
+            ));
+        }
+
+        for source in storage::load_design_sources() {
+            if let Ok(d) = designs::fetch_designs_from(&source.base_url).await {
+                groups.push((source, d));
+            }
+        }
+
+        source_groups.set(groups);
+        loading.set(false);
+    });
 
     view! {
         <div>
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                <p class="text-gray-500 dark:text-gray-400 text-sm sm:text-base">
+            <div class="flex flex-col items-center text-center mb-8">
+                <p class="text-gray-500 dark:text-gray-400 text-sm sm:text-base mb-4">
                     "Generate printable paper ecash banknotes from fedimint"
                 </p>
                 <button
-                    class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 rounded-lg dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 transition-colors whitespace-nowrap"
+                    class="inline-flex items-center justify-center gap-2 px-8 py-4 text-base font-semibold text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 rounded-lg dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 transition-colors"
                     on:click=move |_| on_new()
                 >
-                    "+ New Issuance"
+                    "Issue Paper Ecash"
                 </button>
             </div>
 
             <div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">"Available Designs"</h2>
                 {move || {
-                    let items = issuances.get();
-                    if items.is_empty() {
-                        view! {
-                            <div class="text-center py-12 text-gray-500 dark:text-gray-400">
-                                <p class="text-lg">"No issuances yet."</p>
-                                <p class="text-sm mt-1">"Create one to get started."</p>
-                            </div>
-                        }
-                            .into_any()
-                    } else {
-                        view! {
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {items
-                                    .into_iter()
-                                    .map(|issuance| {
-                                        let id_resume = issuance.id.clone();
-                                        let id_delete = issuance.id.clone();
-                                        let on_resume = on_resume.clone();
-                                        view! {
-                                            <IssuanceCard
-                                                issuance=issuance
-                                                on_click=move |_| on_resume(id_resume.clone())
-                                                on_delete=move |_| delete_issuance(id_delete.clone())
-                                            />
-                                        }
-                                    })
-                                    .collect::<Vec<_>>()}
-                            </div>
-                        }
-                            .into_any()
+                    if loading.get() && source_groups.get().is_empty() {
+                        return view! {
+                            <div class="text-sm text-gray-500 dark:text-gray-400 text-center py-8">"Loading designs..."</div>
+                        }.into_any();
                     }
+                    let groups = source_groups.get();
+                    if groups.is_empty() {
+                        return view! {
+                            <div class="text-sm text-gray-500 dark:text-gray-400 text-center py-8">"No designs found."</div>
+                        }.into_any();
+                    }
+                    view! {
+                        <div class="space-y-6">
+                            {groups.into_iter().map(|(source, ds)| {
+                                let source_name = source.name.clone();
+                                view! {
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">{source_name}</h3>
+                                        {if ds.is_empty() {
+                                            view! {
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 py-2">"No designs in this source."</p>
+                                            }.into_any()
+                                        } else {
+                                            view! {
+                                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                                    {ds.into_iter().map(|d| {
+                                                        let name = d.name.clone();
+                                                        let front_url = d.front_url.clone();
+                                                        view! {
+                                                            <div class="border-2 border-gray-200 dark:border-gray-700 rounded-lg p-2 text-center">
+                                                                <img src=front_url alt=name.clone() class="w-full h-auto rounded mb-1" />
+                                                                <span class="text-xs text-gray-600 dark:text-gray-400">{name}</span>
+                                                            </div>
+                                                        }
+                                                    }).collect::<Vec<_>>()}
+                                                </div>
+                                            }.into_any()
+                                        }}
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>()}
+                        </div>
+                    }.into_any()
                 }}
-            </div>
-        </div>
-    }
-}
-
-#[component]
-fn IssuanceCard(
-    issuance: Issuance,
-    on_click: impl Fn(web_sys::MouseEvent) + Send + Sync + 'static,
-    on_delete: impl Fn(web_sys::MouseEvent) + Send + Sync + 'static,
-) -> impl IntoView {
-    let status_classes = match &issuance.status {
-        crate::models::IssuanceStatus::AwaitingDeposit => {
-            "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
-        }
-        crate::models::IssuanceStatus::Funded => {
-            "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-        }
-        crate::models::IssuanceStatus::Issued => {
-            "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300"
-        }
-        crate::models::IssuanceStatus::Complete => {
-            "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-        }
-    };
-
-    view! {
-        <div
-            class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-md transition-all"
-            on:click=on_click
-        >
-            <div class="flex items-center justify-between mb-3">
-                <span class="font-semibold text-gray-900 dark:text-white">{issuance.label.clone()}</span>
-                <span class={format!("text-xs font-medium px-2.5 py-0.5 rounded-full {status_classes}")}>
-                    {issuance.status.label()}
-                </span>
-            </div>
-            <div class="grid grid-cols-2 gap-1 mb-3 text-sm">
-                <div>
-                    <span class="text-gray-500 dark:text-gray-400 mr-1">"Notes:"</span>
-                    <span class="text-gray-900 dark:text-white">{issuance.config.note_count}</span>
-                </div>
-                <div>
-                    <span class="text-gray-500 dark:text-gray-400 mr-1">"Per note:"</span>
-                    <span class="text-gray-900 dark:text-white">{format!("{} sats", issuance.per_note_amount_sats())}</span>
-                </div>
-                <div>
-                    <span class="text-gray-500 dark:text-gray-400 mr-1">"Total:"</span>
-                    <span class="text-gray-900 dark:text-white">{format!("{} sats", issuance.total_amount_sats())}</span>
-                </div>
-                <div>
-                    <span class="text-gray-500 dark:text-gray-400 mr-1">"Design:"</span>
-                    <span class="text-gray-900 dark:text-white">{issuance.config.design_id.clone()}</span>
-                </div>
-            </div>
-            <div class="flex justify-end">
-                <button
-                    class="px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    on:click=move |e: web_sys::MouseEvent| {
-                        e.stop_propagation();
-                        on_delete(e);
-                    }
-                >
-                    "Delete"
-                </button>
             </div>
         </div>
     }

@@ -1,3 +1,4 @@
+pub mod issuances;
 pub mod landing;
 pub mod wizard;
 pub mod step_federation;

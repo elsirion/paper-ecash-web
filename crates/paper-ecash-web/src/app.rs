@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
 use crate::components::design_editor::DesignEditor;
+use crate::components::issuances::Issuances;
 use crate::components::landing::Landing;
 use crate::components::wizard::Wizard;
 use crate::wallet_runtime::WalletRuntime;
@@ -11,6 +12,7 @@ pub enum AppView {
     NewIssuance,
     ResumeIssuance(String),
     DesignEditor,
+    Issuances,
 }
 
 #[component]
@@ -52,6 +54,12 @@ pub fn App() -> impl IntoView {
                 <div class="flex items-center gap-2">
                     <button
                         class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        on:click=move |_| view.set(AppView::Issuances)
+                    >
+                        "Issuances"
+                    </button>
+                    <button
+                        class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                         on:click=move |_| view.set(AppView::DesignEditor)
                     >
                         "Design Editor"
@@ -85,6 +93,13 @@ pub fn App() -> impl IntoView {
                             view! {
                                 <Landing
                                     on_new=move || view.set(AppView::NewIssuance)
+                                />
+                            }
+                                .into_any()
+                        }
+                        AppView::Issuances => {
+                            view! {
+                                <Issuances
                                     on_resume=move |id| view.set(AppView::ResumeIssuance(id))
                                 />
                             }
