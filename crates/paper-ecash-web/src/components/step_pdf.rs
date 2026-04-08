@@ -12,6 +12,7 @@ pub fn StepPdf(
     issuance: RwSignal<Option<Issuance>>,
     designs: RwSignal<Vec<Design>>,
     on_done: impl Fn() + Send + Sync + Clone + 'static,
+    on_back: impl Fn() + Send + Sync + Clone + 'static,
 ) -> impl IntoView {
     let status_msg = RwSignal::new(String::from("Ready to generate PDF."));
     let error = RwSignal::new(Option::<String>::None);
@@ -226,6 +227,15 @@ pub fn StepPdf(
             }}
 
             <div class="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+                <button
+                    class="px-5 py-2.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors"
+                    on:click={
+                        let on_back = on_back.clone();
+                        move |_| on_back()
+                    }
+                >
+                    "Back"
+                </button>
                 <button
                     class="px-5 py-2.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors"
                     on:click={
