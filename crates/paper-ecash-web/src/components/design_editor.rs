@@ -324,7 +324,7 @@ pub fn DesignEditor(
     };
 
     let build_design_json = move || -> Option<String> {
-        let name = design_name.get_untracked().trim().to_string();
+        let name = design_name.get().trim().to_string();
         if name.is_empty() {
             return None;
         }
@@ -332,12 +332,12 @@ pub fn DesignEditor(
             .replace(|c: char| !c.is_alphanumeric(), "_")
             .trim_matches('_').to_string();
         let mut qr_obj = serde_json::json!({
-            "x_offset_cm": qr_x.get_untracked(),
-            "y_offset_cm": qr_y.get_untracked(),
-            "size_cm": qr_size.get_untracked(),
-            "error_correction": ec_level.get_untracked(),
+            "x_offset_cm": qr_x.get(),
+            "y_offset_cm": qr_y.get(),
+            "size_cm": qr_size.get(),
+            "error_correction": ec_level.get(),
         });
-        if overlay_url.get_untracked().is_some() {
+        if overlay_url.get().is_some() {
             qr_obj.as_object_mut().unwrap()
                 .insert("overlay".into(), "qr_overlay.png".into());
         }
@@ -348,16 +348,16 @@ pub fn DesignEditor(
             "back": "back.png",
             "qr": qr_obj,
         });
-        if text_enabled.get_untracked() {
-            let box_h = text_h.get_untracked();
+        if text_enabled.get() {
+            let box_h = text_h.get();
             json.as_object_mut().unwrap().insert("amount_text".into(), serde_json::json!({
-                "font_family": text_font.get_untracked(),
-                "font_url": text_font_url.get_untracked(),
+                "font_family": text_font.get(),
+                "font_url": text_font_url.get(),
                 "font_size_pt": box_h * 0.75 * 28.3465,
-                "color_hex": text_color.get_untracked(),
-                "x_offset_cm": text_x.get_untracked(),
-                "y_offset_cm": text_y.get_untracked(),
-                "width_cm": text_w.get_untracked(),
+                "color_hex": text_color.get(),
+                "x_offset_cm": text_x.get(),
+                "y_offset_cm": text_y.get(),
+                "width_cm": text_w.get(),
                 "height_cm": box_h,
             }));
         }
@@ -825,6 +825,16 @@ pub fn DesignEditor(
                     "Save & Use"
                 </button>
             </div>
+
+            // JSON preview
+            {move || {
+                build_design_json().map(|json| view! {
+                    <div class="mt-6">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">"design.json"</h3>
+                        <pre class="p-3 text-xs font-mono text-gray-800 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto whitespace-pre-wrap">{json}</pre>
+                    </div>
+                })
+            }}
         </div>
     }
 }
