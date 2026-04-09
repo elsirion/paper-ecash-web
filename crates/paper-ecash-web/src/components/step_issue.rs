@@ -28,16 +28,6 @@ pub fn StepIssue(
             started.set(true);
             let Some(iss) = issuance.get_untracked() else { return };
 
-            // If already issued, skip
-            if iss.status == IssuanceStatus::Issued || iss.status == IssuanceStatus::Complete {
-                if !iss.ecash_notes.is_empty() {
-                    done.set(true);
-                    status_msg.set("Notes already issued.".into());
-                    on_next();
-                    return;
-                }
-            }
-
             let count = iss.config.note_count;
             let denoms = iss.config.denominations_msat.clone();
             total.set(count);
@@ -52,9 +42,46 @@ pub fn StepIssue(
                     return;
                 }
 
+                // Recover any notes already minted from the operation log.
+                // This handles the case where the app was reloaded mid-issuance.
+                status_msg.set("Checking for previously issued notes...".into());
+                let mut all_notes: Vec<String> = match rt.recover_issued_notes().await {
+                    Ok(notes) => notes,
+                    Err(e) => {
+                        tracing::warn!("Failed to recover notes from oplog: {e}");
+                        Vec::new()
+                    }
+                };
+
+                let already_minted = all_notes.len() as u32;
+                if already_minted > 0 {
+                    status_msg.set(format!(
+                        "Recovered {} previously issued notes.",
+                        already_minted
+                    ));
+                    progress.set(already_minted);
+                }
+
+                // If we already have all notes, skip minting
+                if already_minted >= count {
+                    all_notes.truncate(count as usize);
+                    progress.set(count);
+                    status_msg.set(format!("All {} notes issued!", count));
+                    let mut updated = iss.clone();
+                    updated.ecash_notes = all_notes;
+                    updated.status = IssuanceStatus::Issued;
+                    storage::save_issuance(&updated);
+                    issuance.set(Some(updated));
+                    done.set(true);
+                    on_next();
+                    return;
+                }
+
                 // Wait for balance to be available
+                let remaining = count - already_minted;
                 status_msg.set("Checking balance...".into());
-                let required = iss.total_amount_msat;
+                let per_note_msat: u64 = denoms.iter().sum();
+                let required = per_note_msat * remaining as u64;
                 let mut attempts = 0u32;
                 loop {
                     match rt.get_balance().await {
@@ -83,9 +110,7 @@ pub fn StepIssue(
 
                 status_msg.set("Issuing notes with exact denominations...".into());
 
-                let mut all_notes = Vec::new();
-
-                for i in 0..count {
+                for i in already_minted..count {
                     progress.set(i);
                     status_msg.set(format!("Issuing note {} of {}...", i + 1, count));
 
@@ -98,6 +123,15 @@ pub fn StepIssue(
                             }
                         }
                         Err(e) => {
+                            // Save what we have so far to localStorage as a
+                            // cache. On next load, recover_issued_notes will
+                            // re-derive them from the oplog anyway, but this
+                            // makes the issuances list show partial progress.
+                            let mut partial = iss.clone();
+                            partial.ecash_notes = all_notes;
+                            storage::save_issuance(&partial);
+                            issuance.set(Some(partial));
+
                             error.set(Some(format!(
                                 "Failed to issue note {} of {}: {e}",
                                 i + 1,
@@ -119,7 +153,7 @@ pub fn StepIssue(
                 issuance.set(Some(updated));
                 done.set(true);
 
-                // Auto-progress to PDF step
+                // Auto-progress to next step
                 on_next();
             });
         }

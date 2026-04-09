@@ -1,7 +1,6 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use anyhow::Context;
 use futures::channel::oneshot;
@@ -14,16 +13,6 @@ use web_sys::{DedicatedWorkerGlobalScope, MessageEvent, Worker};
 
 use crate::browser;
 use crate::fedimint::WalletRuntimeCore;
-
-// ── Public event types ──
-
-#[derive(Clone, Debug)]
-pub enum OperationEvent {
-    PaymentReceived { amount_msat: Option<u64> },
-    SpendExactProgress { completed: u32, total: u32 },
-    SpendExactDone { notes: Vec<String> },
-    SpendExactFailed { error: String },
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InvoiceResponse {
@@ -67,16 +56,8 @@ impl WalletRuntime {
             .await
     }
 
-    pub async fn disconnect(&self) -> anyhow::Result<()> {
-        self.worker.request(Command::Disconnect).await
-    }
-
     pub async fn get_balance(&self) -> anyhow::Result<u64> {
         self.worker.request(Command::GetBalance).await
-    }
-
-    pub async fn get_federation_name(&self) -> anyhow::Result<String> {
-        self.worker.request(Command::GetFederationName).await
     }
 
     pub async fn create_invoice(
@@ -92,12 +73,23 @@ impl WalletRuntime {
             .await
     }
 
-    pub async fn watch_invoice(&self, operation_id: &str) -> anyhow::Result<()> {
+    /// Scan the operation log for an existing LN receive operation.
+    pub async fn find_ln_receive(&self) -> anyhow::Result<Option<InvoiceResponse>> {
+        self.worker.request(Command::FindLnReceive).await
+    }
+
+    /// Subscribe to an existing LN receive and block until Claimed/Canceled.
+    pub async fn wait_for_receive(&self, operation_id: &str) -> anyhow::Result<()> {
         self.worker
-            .request(Command::WatchInvoice {
+            .request(Command::WaitForReceive {
                 operation_id: operation_id.to_owned(),
             })
             .await
+    }
+
+    /// Recover all issued OOB notes from the operation log.
+    pub async fn recover_issued_notes(&self) -> anyhow::Result<Vec<String>> {
+        self.worker.request(Command::RecoverIssuedNotes).await
     }
 
     pub async fn spend_exact(
@@ -111,13 +103,6 @@ impl WalletRuntime {
                 include_invite,
             })
             .await
-    }
-
-    pub fn set_event_listener(&self, listener: Option<Arc<dyn Fn(OperationEvent) + Send + Sync>>) {
-        self.worker.set_event_listener(listener.map(|a| {
-            let rc: Rc<dyn Fn(OperationEvent)> = Rc::new(move |e| a(e));
-            rc
-        }));
     }
 }
 
@@ -145,7 +130,7 @@ pub fn run_worker_entrypoint() -> bool {
             let runtime = Rc::clone(&runtime);
             let scope = scope.clone();
             spawn_local(async move {
-                let response = handle_request(runtime, scope.clone(), request).await;
+                let response = handle_request(runtime, request).await;
                 if let Err(err) = post_message(&scope, &response) {
                     let _ = post_message(
                         &scope,
@@ -167,7 +152,6 @@ pub fn run_worker_entrypoint() -> bool {
 
 async fn handle_request(
     runtime: Rc<RefCell<Option<(String, WalletRuntimeCore)>>>,
-    scope: DedicatedWorkerGlobalScope,
     request: RequestEnvelope,
 ) -> ResponseEnvelope {
     let result = match request.command {
@@ -196,10 +180,6 @@ async fn handle_request(
                 }
             }
         }
-        Command::Disconnect => {
-            runtime.borrow_mut().take();
-            serialize_ok(())
-        }
         Command::GetBalance => {
             with_runtime(&runtime, |wallet| async move {
                 let balance = wallet.get_balance().await?;
@@ -208,25 +188,13 @@ async fn handle_request(
             .await
             .and_then(serialize_ok)
         }
-        Command::GetFederationName => {
-            with_runtime(&runtime, |wallet| async move {
-                wallet.get_federation_name().await
-            })
-            .await
-            .and_then(serialize_ok)
-        }
         Command::CreateInvoice {
             amount_msat,
             description,
         } => {
-            let scope = scope.clone();
             with_runtime(&runtime, move |wallet| async move {
                 let (op_id_str, invoice_str) =
                     wallet.create_invoice(amount_msat, &description).await?;
-                wallet.spawn_receive_watcher(op_id_str.clone(), move |amount_msat| {
-                    let event = WireEvent::PaymentReceived { amount_msat };
-                    let _ = post_message(&scope, &WorkerEventEnvelope { event });
-                });
                 Ok(InvoiceResponse {
                     operation_id: op_id_str,
                     invoice: invoice_str,
@@ -234,18 +202,6 @@ async fn handle_request(
             })
             .await
             .and_then(serialize_ok)
-        }
-        Command::WatchInvoice { operation_id } => {
-            let scope = scope.clone();
-            with_runtime(&runtime, move |wallet| async move {
-                wallet.start_watching_invoice(&operation_id, move |amount_msat| {
-                    let event = WireEvent::PaymentReceived { amount_msat };
-                    let _ = post_message(&scope, &WorkerEventEnvelope { event });
-                })?;
-                Ok(())
-            })
-            .await
-            .and_then(|_| serialize_ok(()))
         }
         Command::SpendExact {
             denominations_msat,
@@ -255,6 +211,31 @@ async fn handle_request(
                 wallet
                     .spend_exact(&denominations_msat, include_invite)
                     .await
+            })
+            .await
+            .and_then(serialize_ok)
+        }
+        Command::FindLnReceive => {
+            with_runtime(&runtime, |wallet| async move {
+                let result = wallet.find_ln_receive().await?;
+                Ok(result.map(|(op_id, invoice)| InvoiceResponse {
+                    operation_id: op_id,
+                    invoice,
+                }))
+            })
+            .await
+            .and_then(serialize_ok)
+        }
+        Command::WaitForReceive { operation_id } => {
+            with_runtime(&runtime, move |wallet| async move {
+                wallet.wait_for_receive(&operation_id).await
+            })
+            .await
+            .and_then(|_| serialize_ok(()))
+        }
+        Command::RecoverIssuedNotes => {
+            with_runtime(&runtime, |wallet| async move {
+                wallet.recover_issued_notes().await
             })
             .await
             .and_then(serialize_ok)
@@ -305,7 +286,6 @@ fn post_message<T: Serialize>(
 // ── Wire protocol types ──
 
 type ResponseSender = oneshot::Sender<anyhow::Result<serde_json::Value>>;
-type EventListener = Rc<dyn Fn(OperationEvent)>;
 
 #[derive(Clone)]
 struct WorkerClient {
@@ -316,17 +296,14 @@ struct WorkerClientInner {
     worker: Worker,
     next_id: Cell<u64>,
     pending: Rc<RefCell<HashMap<u64, ResponseSender>>>,
-    event_listener: Rc<RefCell<Option<EventListener>>>,
     _on_message: Closure<dyn FnMut(MessageEvent)>,
 }
 
 impl WorkerClient {
     fn new(worker: Worker) -> Self {
         let pending = Rc::new(RefCell::new(HashMap::<u64, ResponseSender>::new()));
-        let event_listener = Rc::new(RefCell::new(None::<EventListener>));
         let on_message = Closure::wrap(Box::new({
             let pending = Rc::clone(&pending);
-            let event_listener = Rc::clone(&event_listener);
             move |event: MessageEvent| {
                 let Some(raw) = event.data().as_string() else {
                     return;
@@ -340,13 +317,6 @@ impl WorkerClient {
                     if let Some(sender) = pending.borrow_mut().remove(&envelope.id) {
                         let _ = sender.send(result);
                     }
-                    return;
-                }
-
-                if let Ok(event_envelope) = serde_json::from_str::<WorkerEventEnvelope>(&raw) {
-                    if let Some(callback) = event_listener.borrow().as_ref() {
-                        callback(event_envelope.event.into_public());
-                    }
                 }
             }
         }) as Box<dyn FnMut(MessageEvent)>);
@@ -356,16 +326,11 @@ impl WorkerClient {
             worker,
             next_id: Cell::new(1),
             pending,
-            event_listener,
             _on_message: on_message,
         };
         Self {
             inner: Rc::new(inner),
         }
-    }
-
-    fn set_event_listener(&self, listener: Option<Rc<dyn Fn(OperationEvent)>>) {
-        self.inner.event_listener.replace(listener);
     }
 
     async fn request<T: DeserializeOwned>(&self, command: Command) -> anyhow::Result<T> {
@@ -400,20 +365,20 @@ enum Command {
         mnemonic: String,
         invite_code: String,
     },
-    Disconnect,
     GetBalance,
-    GetFederationName,
     CreateInvoice {
         amount_msat: u64,
         description: String,
-    },
-    WatchInvoice {
-        operation_id: String,
     },
     SpendExact {
         denominations_msat: Vec<u64>,
         include_invite: bool,
     },
+    FindLnReceive,
+    WaitForReceive {
+        operation_id: String,
+    },
+    RecoverIssuedNotes,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -435,34 +400,4 @@ struct ResponseEnvelope {
 enum ResponsePayload {
     Ok { value: serde_json::Value },
     Err { message: String },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct WorkerEventEnvelope {
-    #[serde(flatten)]
-    event: WireEvent,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "event", rename_all = "snake_case")]
-enum WireEvent {
-    PaymentReceived { amount_msat: Option<u64> },
-    SpendExactProgress { completed: u32, total: u32 },
-    SpendExactDone { notes: Vec<String> },
-    SpendExactFailed { error: String },
-}
-
-impl WireEvent {
-    fn into_public(self) -> OperationEvent {
-        match self {
-            Self::PaymentReceived { amount_msat } => {
-                OperationEvent::PaymentReceived { amount_msat }
-            }
-            Self::SpendExactProgress { completed, total } => {
-                OperationEvent::SpendExactProgress { completed, total }
-            }
-            Self::SpendExactDone { notes } => OperationEvent::SpendExactDone { notes },
-            Self::SpendExactFailed { error } => OperationEvent::SpendExactFailed { error },
-        }
-    }
 }

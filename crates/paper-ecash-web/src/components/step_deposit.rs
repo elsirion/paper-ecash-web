@@ -4,13 +4,14 @@ use leptos::prelude::*;
 
 use crate::models::{Issuance, IssuanceConfig, IssuanceStatus};
 use crate::storage;
-use crate::wallet_runtime::{OperationEvent, WalletRuntime};
+use crate::wallet_runtime::WalletRuntime;
 
 #[component]
 pub fn StepDeposit(
     wallet: RwSignal<Option<WalletRuntime>>,
     issuance: RwSignal<Option<Issuance>>,
     build_config: Arc<dyn Fn() -> IssuanceConfig + Send + Sync>,
+    #[allow(unused)]
     federation_name: RwSignal<String>,
     on_next: impl Fn() + Send + Sync + Clone + 'static,
 ) -> impl IntoView {
@@ -97,7 +98,7 @@ pub fn StepDeposit(
                     return;
                 }
 
-                // Check if already funded
+                // Check if already funded via balance
                 match rt.get_balance().await {
                     Ok(balance_msat) if balance_msat >= iss.total_amount_msat => {
                         status_msg.set("Balance sufficient, already funded!".into());
@@ -106,42 +107,64 @@ pub fn StepDeposit(
                         storage::save_issuance(&updated);
                         issuance.set(Some(updated));
                         paid.set(true);
+                        on_next();
                         return;
                     }
                     _ => {}
                 }
 
-                // Create invoice
-                status_msg.set("Creating Lightning invoice...".into());
-                match rt
-                    .create_invoice(
-                        iss.total_amount_msat,
-                        &format!("Paper eCash: {}", iss.label),
-                    )
-                    .await
-                {
-                    Ok(resp) => {
+                // Check the operation log for an existing LN receive invoice
+                // before creating a new one — this is the key recovery path.
+                let (op_id, _invoice) = match rt.find_ln_receive().await {
+                    Ok(Some(resp)) => {
+                        status_msg
+                            .set("Found existing invoice. Waiting for payment...".into());
                         invoice_str.set(resp.invoice.clone());
-                        status_msg.set("Invoice created. Waiting for payment...".into());
-
-                        // Set up payment watcher
-                        let on_next = on_next.clone();
-                        rt.set_event_listener(Some(Arc::new(move |event| {
-                            if let OperationEvent::PaymentReceived { .. } = event {
-                                paid.set(true);
-                                status_msg.set("Payment received!".into());
-                                // Update issuance status
-                                if let Some(mut iss) = issuance.get_untracked() {
-                                    iss.status = IssuanceStatus::Funded;
-                                    storage::save_issuance(&iss);
-                                    issuance.set(Some(iss));
-                                }
-                                on_next();
+                        (resp.operation_id, resp.invoice)
+                    }
+                    _ => {
+                        // No existing invoice — create a new one
+                        status_msg.set("Creating Lightning invoice...".into());
+                        match rt
+                            .create_invoice(
+                                iss.total_amount_msat,
+                                &format!("Paper eCash: {}", iss.label),
+                            )
+                            .await
+                        {
+                            Ok(resp) => {
+                                invoice_str.set(resp.invoice.clone());
+                                status_msg.set(
+                                    "Invoice created. Waiting for payment...".into(),
+                                );
+                                (resp.operation_id, resp.invoice)
                             }
-                        })));
+                            Err(e) => {
+                                error.set(Some(format!(
+                                    "Failed to create invoice: {e}"
+                                )));
+                                return;
+                            }
+                        }
+                    }
+                };
+
+                // Wait for the LN payment to complete (blocks until
+                // Claimed/Canceled). This works for both fresh and resumed
+                // invoices since it subscribes to the operation's state stream.
+                match rt.wait_for_receive(&op_id).await {
+                    Ok(()) => {
+                        paid.set(true);
+                        status_msg.set("Payment received!".into());
+                        if let Some(mut iss) = issuance.get_untracked() {
+                            iss.status = IssuanceStatus::Funded;
+                            storage::save_issuance(&iss);
+                            issuance.set(Some(iss));
+                        }
+                        on_next();
                     }
                     Err(e) => {
-                        error.set(Some(format!("Failed to create invoice: {e}")));
+                        error.set(Some(format!("Payment failed: {e}")));
                     }
                 }
             });
@@ -254,7 +277,6 @@ fn InvoiceQr(invoice: String) -> impl IntoView {
             8,
         ) {
             Ok(png_bytes) => {
-                use wasm_bindgen::JsCast;
                 let array = js_sys::Uint8Array::from(&png_bytes[..]);
                 let parts = js_sys::Array::new();
                 parts.push(&array.buffer());

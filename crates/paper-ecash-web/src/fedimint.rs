@@ -15,13 +15,18 @@ use fedimint_core::secp256k1::PublicKey;
 use fedimint_core::{Amount, TieredCounts, TieredMulti};
 use fedimint_cursed_redb::MemAndRedb;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
-use fedimint_ln_client::{LightningClientInit, LightningClientModule, LnReceiveState};
+use fedimint_ln_client::{
+    LightningClientInit, LightningClientModule, LightningOperationMeta,
+    LightningOperationMetaVariant, LnReceiveState,
+};
 use fedimint_meta_client::{MetaClientInit, MetaModuleMetaSourceWithFallback};
-use fedimint_mint_client::{MintClientInit, MintClientModule, OOBNotes, SpendExactState};
+use fedimint_mint_client::{
+    MintClientInit, MintClientModule, MintOperationMeta, MintOperationMetaVariant, OOBNotes,
+    SpendExactState,
+};
 use fedimint_wallet_client::WalletClientInit;
 use futures::StreamExt;
 use tracing::info;
-use wasm_bindgen_futures::spawn_local;
 
 use crate::browser;
 
@@ -111,52 +116,6 @@ impl WalletRuntimeCore {
         Ok((operation_id.fmt_full().to_string(), invoice.to_string()))
     }
 
-    pub fn spawn_receive_watcher(
-        &self,
-        operation_id_str: String,
-        on_received: impl FnOnce(Option<u64>) + 'static,
-    ) {
-        let this = self.clone();
-        spawn_local(async move {
-            let Ok(client) = this.ensure_client().await else {
-                return;
-            };
-            let Ok(op_id) = parse_operation_id(&operation_id_str) else {
-                return;
-            };
-            let Ok(ln) = client
-                .get_first_module::<LightningClientModule>()
-                .map(|m| m.inner())
-            else {
-                return;
-            };
-            let Ok(sub) = ln.subscribe_ln_receive(op_id).await else {
-                return;
-            };
-            let mut stream = sub.into_stream();
-            while let Some(state) = stream.next().await {
-                match state {
-                    LnReceiveState::Claimed => {
-                        on_received(None);
-                        return;
-                    }
-                    LnReceiveState::Canceled { .. } => return,
-                    _ => {}
-                }
-            }
-        });
-    }
-
-    pub fn start_watching_invoice(
-        &self,
-        operation_id_str: &str,
-        on_received: impl FnOnce(Option<u64>) + 'static,
-    ) -> anyhow::Result<()> {
-        let op_id_str = operation_id_str.to_owned();
-        self.spawn_receive_watcher(op_id_str, on_received);
-        Ok(())
-    }
-
     pub async fn spend_exact(
         &self,
         denominations_msat: &[u64],
@@ -210,6 +169,90 @@ impl WalletRuntimeCore {
         }
 
         Ok(result)
+    }
+
+    /// Scan the operation log for an existing LN receive operation.
+    /// Returns `(operation_id, invoice_string)` if one exists.
+    pub async fn find_ln_receive(&self) -> anyhow::Result<Option<(String, String)>> {
+        let client = self.ensure_client().await?;
+        let ops = client.operation_log().paginate_operations_rev(100, None).await;
+
+        for (key, entry) in &ops {
+            if entry.operation_module_kind() != "ln" {
+                continue;
+            }
+            let Ok(meta) = entry.try_meta::<LightningOperationMeta>() else {
+                continue;
+            };
+            #[allow(deprecated)]
+            if let LightningOperationMetaVariant::Receive { invoice, .. } = &meta.variant {
+                let op_id = key.operation_id;
+                return Ok(Some((op_id.fmt_full().to_string(), invoice.to_string())));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Subscribe to an existing LN receive operation and wait until it reaches
+    /// Claimed or Canceled. Returns Ok(()) on success, Err on cancel/failure.
+    pub async fn wait_for_receive(&self, operation_id_str: &str) -> anyhow::Result<()> {
+        let client = self.ensure_client().await?;
+        let op_id = parse_operation_id(operation_id_str)?;
+        let ln = client.get_first_module::<LightningClientModule>()?.inner();
+        let sub = ln.subscribe_ln_receive(op_id).await?;
+        let mut stream = sub.into_stream();
+        while let Some(state) = stream.next().await {
+            match state {
+                LnReceiveState::Claimed => return Ok(()),
+                LnReceiveState::Canceled { reason } => {
+                    anyhow::bail!("LN receive canceled: {reason:?}");
+                }
+                _ => {}
+            }
+        }
+        anyhow::bail!("LN receive stream ended without terminal state")
+    }
+
+    /// Scan the operation log for all completed SpendExact operations and
+    /// recover the OOB note strings from each.
+    pub async fn recover_issued_notes(&self) -> anyhow::Result<Vec<String>> {
+        let client = self.ensure_client().await?;
+        let ops = client.operation_log().paginate_operations_rev(10000, None).await;
+        let mint = client.get_first_module::<MintClientModule>()?.inner();
+
+        let mut all_notes = Vec::new();
+        for (key, entry) in &ops {
+            if entry.operation_module_kind() != "mint" {
+                continue;
+            }
+            let Ok(meta) = entry.try_meta::<MintOperationMeta>() else {
+                continue;
+            };
+            if !matches!(meta.variant, MintOperationMetaVariant::SpendExact { .. }) {
+                continue;
+            }
+            let op_id = key.operation_id;
+
+            // Get the outcome (either cached or by subscribing)
+            let sub = mint
+                .subscribe_spend_notes_with_exact_denominations(op_id)
+                .await?;
+            let Some(outcome) = sub.await_outcome().await else {
+                continue;
+            };
+            let SpendExactState::Success(notes) = outcome else {
+                continue;
+            };
+
+            // Convert each note to an OOBNotes string
+            for (amount, note) in notes.iter_items() {
+                let mut single = TieredMulti::default();
+                single.push(amount, *note);
+                let oob = OOBNotes::new_with_invite(single, &self.invite_code);
+                all_notes.push(oob.to_string());
+            }
+        }
+        Ok(all_notes)
     }
 
     async fn ensure_client(&self) -> anyhow::Result<Rc<ClientHandle>> {
