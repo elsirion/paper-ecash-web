@@ -1,17 +1,20 @@
 use leptos::prelude::*;
 
 use crate::components::design_editor::DesignEditor;
+use crate::components::designs_page::DesignsPage;
 use crate::components::issuances::Issuances;
 use crate::components::landing::Landing;
 use crate::components::wizard::Wizard;
+use crate::designs::Design;
 use crate::wallet_runtime::WalletRuntime;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum AppView {
     Landing,
     NewIssuance,
     ResumeIssuance(String),
-    DesignEditor,
+    Designs,
+    DesignEditor(Option<Design>),
     Issuances,
 }
 
@@ -60,9 +63,9 @@ pub fn App() -> impl IntoView {
                     </button>
                     <button
                         class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                        on:click=move |_| view.set(AppView::DesignEditor)
+                        on:click=move |_| view.set(AppView::Designs)
                     >
-                        "Design Editor"
+                        "Designs"
                     </button>
                     <button
                         class="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -125,10 +128,20 @@ pub fn App() -> impl IntoView {
                             }
                                 .into_any()
                         }
-                        AppView::DesignEditor => {
+                        AppView::Designs => {
+                            view! {
+                                <DesignsPage
+                                    on_new=move || view.set(AppView::DesignEditor(None))
+                                    on_edit=move |d: Design| view.set(AppView::DesignEditor(Some(d)))
+                                />
+                            }
+                                .into_any()
+                        }
+                        AppView::DesignEditor(design) => {
                             view! {
                                 <DesignEditor
-                                    on_back=move || view.set(AppView::Landing)
+                                    on_back=move || view.set(AppView::Designs)
+                                    initial_design=design.clone()
                                 />
                             }
                                 .into_any()

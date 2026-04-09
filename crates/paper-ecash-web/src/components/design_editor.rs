@@ -57,29 +57,57 @@ enum DragMode {
 }
 
 #[component]
-pub fn DesignEditor(on_back: impl Fn() + Send + Sync + 'static) -> impl IntoView {
-    let design_id = RwSignal::new(String::new());
-    let design_name = RwSignal::new(String::new());
-    let id_manually_edited = RwSignal::new(false);
-    let front_url = RwSignal::new(Option::<String>::None);
-    let back_url = RwSignal::new(Option::<String>::None);
-    let overlay_url = RwSignal::new(Option::<String>::None);
-    let qr_x = RwSignal::new(0.0f64);
-    let qr_y = RwSignal::new(0.0f64);
-    let qr_size = RwSignal::new(7.0f64);
-    let ec_level = RwSignal::new(String::from("M"));
+pub fn DesignEditor(
+    on_back: impl Fn() + Send + Sync + 'static,
+    #[prop(into)] initial_design: Option<crate::designs::Design>,
+) -> impl IntoView {
+    let (init_id, init_name, init_front, init_back, init_overlay, init_qr_x, init_qr_y, init_qr_size, init_ec, init_text) =
+        if let Some(d) = &initial_design {
+            (
+                d.id.clone(),
+                d.name.clone(),
+                Some(d.front_url.clone()),
+                Some(d.back_url.clone()),
+                d.qr_overlay_url.clone(),
+                d.qr_x_offset_cm,
+                d.qr_y_offset_cm,
+                d.qr_size_cm,
+                match d.qr_error_correction {
+                    QrErrorCorrection::Q => "Q",
+                    QrErrorCorrection::H => "H",
+                    QrErrorCorrection::M => "M",
+                }.to_string(),
+                d.amount_text.clone(),
+            )
+        } else {
+            (String::new(), String::new(), None, None, None, 0.0, 0.0, 7.0, "M".into(), None)
+        };
+
+    let design_id = RwSignal::new(init_id);
+    let design_name = RwSignal::new(init_name);
+    let id_manually_edited = RwSignal::new(initial_design.is_some());
+    let front_url = RwSignal::new(init_front);
+    let back_url = RwSignal::new(init_back);
+    let overlay_url = RwSignal::new(init_overlay);
+    let qr_x = RwSignal::new(init_qr_x);
+    let qr_y = RwSignal::new(init_qr_y);
+    let qr_size = RwSignal::new(init_qr_size);
+    let ec_level = RwSignal::new(init_ec);
 
     // Amount text signals (placement/style, NOT content)
-    let text_enabled = RwSignal::new(false);
-    let text_font = RwSignal::new(String::from("Roboto"));
+    let text_enabled = RwSignal::new(init_text.is_some());
+    let text_font = RwSignal::new(init_text.as_ref().map(|t| {
+        // Extract font family name from font_family field
+        t.font_family.clone()
+    }).unwrap_or_else(|| "Roboto".into()));
     let text_font_search = RwSignal::new(String::new());
-    let text_color = RwSignal::new(String::from("#000000"));
-    let text_x = RwSignal::new(1.0f64);
-    let text_y = RwSignal::new(0.5f64);
-    let text_w = RwSignal::new(4.0f64);
-    let text_h = RwSignal::new(1.0f64);
+    let text_color = RwSignal::new(init_text.as_ref().map(|t| t.color_hex.clone()).unwrap_or_else(|| "#000000".into()));
+    let text_x = RwSignal::new(init_text.as_ref().map(|t| t.x_offset_cm).unwrap_or(1.0));
+    let text_y = RwSignal::new(init_text.as_ref().map(|t| t.y_offset_cm).unwrap_or(0.5));
+    let text_w = RwSignal::new(init_text.as_ref().map(|t| t.width_cm).unwrap_or(4.0));
+    let text_h = RwSignal::new(init_text.as_ref().map(|t| t.height_cm).unwrap_or(1.0));
     let show_font_dropdown = RwSignal::new(false);
-    let text_font_url = RwSignal::new(String::new());
+    let text_font_url = RwSignal::new(init_text.as_ref().map(|t| t.font_url.clone()).unwrap_or_default());
 
     // Drag state
     let dragging = RwSignal::new(Option::<DragMode>::None);
