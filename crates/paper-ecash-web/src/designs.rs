@@ -4,7 +4,7 @@ use wasm_bindgen::JsCast;
 use crate::models::{QrErrorCorrection, TextConfig};
 
 pub const DEFAULT_DESIGNS_URL: &str =
-    "https://raw.githubusercontent.com/elsiribot/paper-ecash-note-designs/main";
+    "https://raw.githubusercontent.com/elsirion/paper-ecash-note-designs/main";
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct DesignSource {
