@@ -109,6 +109,9 @@ pub fn DesignEditor(
     let show_font_dropdown = RwSignal::new(false);
     let text_font_url = RwSignal::new(init_text.as_ref().map(|t| t.font_url.clone()).unwrap_or_default());
 
+    // Sample text shown in the amount text preview box
+    let sample_text = RwSignal::new(String::from("1000 sats"));
+
     // Drag state
     let dragging = RwSignal::new(Option::<DragMode>::None);
     let drag_start_x = RwSignal::new(0.0f64);
@@ -606,6 +609,16 @@ pub fn DesignEditor(
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
                     "Define where amount text will appear. The actual text is entered when selecting this design."
                 </p>
+                <div class="mb-3">
+                    <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Preview text"</label>
+                    <input
+                        type="text"
+                        placeholder="1000 sats"
+                        class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        prop:value=move || sample_text.get()
+                        on:input=move |ev| sample_text.set(event_target_value(&ev))
+                    />
+                </div>
 
                 {move || {
                     if !text_enabled.get() {
@@ -619,7 +632,7 @@ pub fn DesignEditor(
                                 <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Font"</label>
                                 <input
                                     type="text"
-                                    placeholder="Search fonts..."
+                                    placeholder="Search or type any Google Font name..."
                                     class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     prop:value=move || text_font_search.get()
                                     on:input=move |ev| {
@@ -627,6 +640,31 @@ pub fn DesignEditor(
                                         show_font_dropdown.set(true);
                                     }
                                     on:focus=move |_| show_font_dropdown.set(true)
+                                    on:blur={
+                                        let select_font = select_font.clone();
+                                        move |_| {
+                                            // Delay so dropdown click can fire before we close it
+                                            let select_font = select_font.clone();
+                                            wasm_bindgen_futures::spawn_local(async move {
+                                                gloo_timers::future::TimeoutFuture::new(150).await;
+                                                let val = text_font_search.get_untracked();
+                                                if !val.trim().is_empty() && show_font_dropdown.get_untracked() {
+                                                    select_font(val);
+                                                }
+                                            });
+                                        }
+                                    }
+                                    on:keydown={
+                                        let select_font = select_font.clone();
+                                        move |ev: web_sys::KeyboardEvent| {
+                                            if ev.key() == "Enter" {
+                                                let val = text_font_search.get_untracked();
+                                                if !val.trim().is_empty() {
+                                                    select_font(val);
+                                                }
+                                            }
+                                        }
+                                    }
                                 />
                                 {move || {
                                     if !show_font_dropdown.get() {
@@ -642,11 +680,14 @@ pub fn DesignEditor(
                                         fonts::GOOGLE_FONTS.iter().copied().take(20).collect()
                                     };
                                     if entries.is_empty() {
-                                        return view! {
-                                            <div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-3 text-sm text-gray-500 dark:text-gray-400">
-                                                "No fonts found"
-                                            </div>
-                                        }.into_any();
+                                        if has_search {
+                                            return view! {
+                                                <div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-3 text-sm text-gray-500 dark:text-gray-400">
+                                                    "Not in popular list — press Enter to use any Google Font"
+                                                </div>
+                                            }.into_any();
+                                        }
+                                        return view! { <div></div> }.into_any();
                                     }
                                     for family in &entries {
                                         fonts::inject_font_link(family);
@@ -774,7 +815,10 @@ pub fn DesignEditor(
                                                         )
                                                     }
                                                 >
-                                                    "1000 sats"
+                                                    {move || {
+                                                        let t = sample_text.get();
+                                                        if t.trim().is_empty() { "1000 sats".to_string() } else { t }
+                                                    }}
                                                 </span>
                                                 <div
                                                     class="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 dark:bg-blue-400 rounded-sm border-2 border-white dark:border-gray-900 shadow-md"
