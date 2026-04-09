@@ -318,17 +318,41 @@ pub fn StepDesign(
                 };
                 view! {
                     <div class="mb-6">
-                        <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Amount Text"</label>
+                        <label class=move || {
+                            if text_sample.get().trim().is_empty() {
+                                "block mb-1 text-sm font-medium text-red-700 dark:text-red-500"
+                            } else {
+                                "block mb-1 text-sm font-medium text-gray-900 dark:text-white"
+                            }
+                        }>"Amount Text"</label>
                         <input
                             type="text"
                             placeholder="e.g. 1000 sats"
-                            class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            class=move || {
+                                if text_sample.get().trim().is_empty() {
+                                    "block w-full p-2.5 text-sm text-gray-900 bg-red-50 rounded-lg border border-red-500 focus:ring-red-500 focus:border-red-500 dark:bg-gray-700 dark:border-red-500 dark:text-white"
+                                } else {
+                                    "block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                }
+                            }
                             prop:value=move || text_sample.get()
                             on:input=move |ev| text_sample.set(event_target_value(&ev))
                         />
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            "This text will be printed on each note at the position defined by the design."
-                        </p>
+                        {move || {
+                            if text_sample.get().trim().is_empty() {
+                                view! {
+                                    <p class="mt-1 text-xs text-red-600 dark:text-red-500">
+                                        "Required. This text will be printed on each note."
+                                    </p>
+                                }.into_any()
+                            } else {
+                                view! {
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        "This text will be printed on each note at the position defined by the design."
+                                    </p>
+                                }.into_any()
+                            }
+                        }}
                     </div>
                 }.into_any()
             }}
@@ -390,12 +414,7 @@ pub fn StepDesign(
                                     let w_pct = at.width_cm / NOTE_WIDTH_CM * 100.0;
                                     let h_pct = at.height_cm / NOTE_HEIGHT_CM * 100.0;
                                     let fs = h_pct * 0.75;
-                                    let sample = text_sample.get();
-                                    let display = if sample.trim().is_empty() {
-                                        "1000 sats".to_string()
-                                    } else {
-                                        sample
-                                    };
+                                    let display = text_sample.get();
                                     view! {
                                         <div
                                             class="absolute pointer-events-none flex items-center justify-center"
