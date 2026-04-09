@@ -210,7 +210,11 @@ pub fn StepPdf(
                                 </div>
                                 <div class="flex justify-between text-sm py-1">
                                     <span class="text-gray-500 dark:text-gray-400">"Design:"</span>
-                                    <span class="text-gray-900 dark:text-white">{iss.config.design_id.clone()}</span>
+                                    <span class="text-gray-900 dark:text-white">{
+                                        designs::get_design(&designs.get_untracked(), &iss.config.design_id)
+                                            .map(|d| d.name)
+                                            .unwrap_or_else(|| iss.config.design_id.clone())
+                                    }</span>
                                 </div>
                                 <div class="flex justify-between text-sm py-1">
                                     <span class="text-gray-500 dark:text-gray-400">"Pages:"</span>

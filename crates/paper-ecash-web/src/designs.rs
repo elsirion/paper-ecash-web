@@ -70,8 +70,9 @@ pub async fn fetch_designs_from(base_url: &str) -> anyhow::Result<Vec<Design>> {
         match fetch_json::<DesignJson>(&design_url).await {
             Ok(dj) => {
                 let base = format!("{base_url}/{id}");
+                let namespaced_id = format!("{base_url}:{}", dj.id);
                 designs.push(Design {
-                    id: dj.id,
+                    id: namespaced_id,
                     name: dj.name,
                     front_url: format!("{base}/{}", dj.front),
                     back_url: format!("{base}/{}", dj.back),

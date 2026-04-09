@@ -61,10 +61,12 @@ pub fn DesignEditor(
     on_back: impl Fn() + Send + Sync + 'static,
     #[prop(into)] initial_design: Option<crate::designs::Design>,
 ) -> impl IntoView {
-    let (init_id, init_name, init_front, init_back, init_overlay, init_qr_x, init_qr_y, init_qr_size, init_ec, init_text) =
+    // Preserve existing id when editing; generate a new local: UUID for new designs on save.
+    let existing_id = initial_design.as_ref().map(|d| d.id.clone());
+
+    let (init_name, init_front, init_back, init_overlay, init_qr_x, init_qr_y, init_qr_size, init_ec, init_text) =
         if let Some(d) = &initial_design {
             (
-                d.id.clone(),
                 d.name.clone(),
                 Some(d.front_url.clone()),
                 Some(d.back_url.clone()),
@@ -80,12 +82,10 @@ pub fn DesignEditor(
                 d.amount_text.clone(),
             )
         } else {
-            (String::new(), String::new(), None, None, None, 0.0, 0.0, 7.0, "M".into(), None)
+            (String::new(), None, None, None, 0.0, 0.0, 7.0, "M".into(), None)
         };
 
-    let design_id = RwSignal::new(init_id);
     let design_name = RwSignal::new(init_name);
-    let id_manually_edited = RwSignal::new(initial_design.is_some());
     let front_url = RwSignal::new(init_front);
     let back_url = RwSignal::new(init_back);
     let overlay_url = RwSignal::new(init_overlay);
@@ -296,8 +296,7 @@ pub fn DesignEditor(
     };
 
     let can_download = move || {
-        !design_id.get().trim().is_empty()
-            && !design_name.get().trim().is_empty()
+        !design_name.get().trim().is_empty()
             && front_url.get().is_some()
             && back_url.get().is_some()
     };
@@ -325,11 +324,13 @@ pub fn DesignEditor(
     };
 
     let build_design_json = move || -> Option<String> {
-        let id = design_id.get_untracked().trim().to_string();
         let name = design_name.get_untracked().trim().to_string();
-        if id.is_empty() || name.is_empty() {
+        if name.is_empty() {
             return None;
         }
+        let id = name.to_lowercase()
+            .replace(|c: char| !c.is_alphanumeric(), "_")
+            .trim_matches('_').to_string();
         let mut qr_obj = serde_json::json!({
             "x_offset_cm": qr_x.get_untracked(),
             "y_offset_cm": qr_y.get_untracked(),
@@ -369,14 +370,20 @@ pub fn DesignEditor(
         }
     };
 
+    let existing_id = existing_id.clone();
     let build_local_design = move || -> Option<crate::designs::Design> {
-        let id = design_id.get_untracked().trim().to_string();
         let name = design_name.get_untracked().trim().to_string();
         let front = front_url.get_untracked()?;
         let back = back_url.get_untracked()?;
-        if id.is_empty() || name.is_empty() {
+        if name.is_empty() {
             return None;
         }
+        // Reuse the id only if it's already a local design; otherwise
+        // generate a new local id so we don't collide with remote designs.
+        let id = existing_id
+            .clone()
+            .filter(|id| id.starts_with("local:"))
+            .unwrap_or_else(|| format!("local:{}", uuid::Uuid::new_v4()));
         Some(crate::designs::Design {
             id,
             name,
@@ -407,8 +414,7 @@ pub fn DesignEditor(
     };
 
     let can_save = move || {
-        !design_id.get().trim().is_empty()
-            && !design_name.get().trim().is_empty()
+        !design_name.get().trim().is_empty()
             && front_url.get().is_some()
             && back_url.get().is_some()
             && (!text_enabled.get() || !text_font_url.get().is_empty())
@@ -429,41 +435,16 @@ pub fn DesignEditor(
                 "Create a note design template with live QR code placement preview."
             </p>
 
-            // Name and ID
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div>
-                    <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Design Name"</label>
-                    <input
-                        type="text"
-                        placeholder="My Design"
-                        class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-                        prop:value=move || design_name.get()
-                        on:input=move |ev| {
-                            let name = event_target_value(&ev);
-                            design_name.set(name.clone());
-                            if !id_manually_edited.get_untracked() {
-                                let id = name.trim().to_lowercase()
-                                    .replace(|c: char| !c.is_alphanumeric(), "_")
-                                    .trim_matches('_').to_string();
-                                design_id.set(id);
-                            }
-                        }
-                    />
-                </div>
-                <div>
-                    <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Design ID"</label>
-                    <input
-                        type="text"
-                        placeholder="my_design"
-                        class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-                        prop:value=move || design_id.get()
-                        on:input=move |ev| {
-                            id_manually_edited.set(true);
-                            design_id.set(event_target_value(&ev));
-                        }
-                    />
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">"Auto-generated from name. Edit to override."</p>
-                </div>
+            // Name
+            <div class="mb-6">
+                <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Design Name"</label>
+                <input
+                    type="text"
+                    placeholder="My Design"
+                    class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                    prop:value=move || design_name.get()
+                    on:input=move |ev| design_name.set(event_target_value(&ev))
+                />
             </div>
 
             // Image uploads

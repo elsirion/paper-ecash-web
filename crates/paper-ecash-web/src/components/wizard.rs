@@ -53,7 +53,7 @@ pub fn Wizard(
     // Wizard config signals
     let invite_code = RwSignal::new(String::new());
     let federation_name = RwSignal::new(String::new());
-    let design_id = RwSignal::new(String::from("fedi"));
+    let design_id = RwSignal::new(format!("{}:fedi", crate::designs::DEFAULT_DESIGNS_URL));
     let denominations_msat: RwSignal<Vec<u64>> = RwSignal::new(Vec::new());
     let note_count = RwSignal::new(1u32);
     let qr_x_offset = RwSignal::new(0.0f64);
