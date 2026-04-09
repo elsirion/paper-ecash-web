@@ -93,7 +93,13 @@ pub async fn fetch_designs_from(base_url: &str) -> anyhow::Result<Vec<Design>> {
 }
 
 pub fn get_design(designs: &[Design], id: &str) -> Option<Design> {
-    designs.iter().find(|d| d.id == id).cloned()
+    // Exact match first, then fall back to matching the suffix after ':'
+    // to handle old issuances that stored un-namespaced ids.
+    designs
+        .iter()
+        .find(|d| d.id == id)
+        .or_else(|| designs.iter().find(|d| d.id.rsplit_once(':').is_some_and(|(_, suffix)| suffix == id)))
+        .cloned()
 }
 
 async fn fetch_json<T: serde::de::DeserializeOwned>(url: &str) -> anyhow::Result<T> {

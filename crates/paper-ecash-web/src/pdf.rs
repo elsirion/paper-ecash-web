@@ -148,7 +148,7 @@ pub fn generate_pdf(
                 id: qr_ids[note_idx].clone(),
                 transform: XObjectTransform {
                     translate_x: Some(Pt(qr_x_pt.0)),
-                    translate_y: Some(Pt(y_bottom.0 + qr_y_pt.0)),
+                    translate_y: Some(Pt(y_bottom.0 + note_h_pt.0 - qr_y_pt.0 - qr_size_pt.0)),
                     scale_x: Some(qr_sx),
                     scale_y: Some(qr_sy),
                     dpi: Some(DPI),
