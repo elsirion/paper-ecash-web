@@ -52,7 +52,7 @@ pub fn Landing(
         <div>
             <div class="flex flex-col items-center text-center mb-8">
                 <p class="text-gray-500 dark:text-gray-400 text-sm sm:text-base mb-4">
-                    "Generate printable paper ecash banknotes from fedimint"
+                    "Generate printable paper ecash notes from fedimint"
                 </p>
                 <button
                     class="inline-flex items-center justify-center gap-2 px-8 py-4 text-base font-semibold text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 rounded-lg dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 transition-colors"
