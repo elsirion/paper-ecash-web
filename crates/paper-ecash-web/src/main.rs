@@ -25,6 +25,10 @@ fn main() {
     if wallet_runtime::run_worker_entrypoint() {
         return;
     }
+    // Remove the static loading indicator now that WASM is ready
+    if let Some(el) = leptos::prelude::document().get_element_by_id("loading") {
+        el.remove();
+    }
     leptos::mount::mount_to_body(app::App);
 }
 
