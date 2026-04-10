@@ -1,4 +1,6 @@
 use leptos::prelude::*;
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::JsCast;
 
 use crate::components::design_editor::DesignEditor;
 use crate::components::designs_page::DesignsPage;
@@ -18,9 +20,37 @@ pub enum AppView {
     Issuances,
 }
 
+/// Map a URL hash fragment to an AppView. Only pages that make sense as
+/// direct links are mapped; everything else falls back to Landing.
+fn view_from_hash(hash: &str) -> Option<AppView> {
+    let path = hash.trim_start_matches('#').trim_start_matches('/');
+    match path {
+        "designs" => Some(AppView::Designs),
+        "designs/new" => Some(AppView::DesignEditor(None)),
+        _ => None,
+    }
+}
+
+/// Return the hash fragment that should represent a given view, or None
+/// for views that don't have a shareable URL.
+fn hash_for_view(view: &AppView) -> &'static str {
+    match view {
+        AppView::Designs => "#/designs",
+        AppView::DesignEditor(None) => "#/designs/new",
+        _ => "",
+    }
+}
+
+fn current_hash() -> String {
+    web_sys::window()
+        .and_then(|w| w.location().hash().ok())
+        .unwrap_or_default()
+}
+
 #[component]
 pub fn App() -> impl IntoView {
-    let view = RwSignal::new(AppView::Landing);
+    let initial_view = view_from_hash(&current_hash()).unwrap_or(AppView::Landing);
+    let view = RwSignal::new(initial_view);
     let wallet: RwSignal<Option<WalletRuntime>> = RwSignal::new(None);
     let dark = RwSignal::new(is_dark_mode());
 
@@ -37,6 +67,32 @@ pub fn App() -> impl IntoView {
                 Err(e) => tracing::error!("Failed to spawn wallet worker: {e:#}"),
             }
         });
+    });
+
+    // Sync hash → view on browser back/forward
+    let on_hashchange = Closure::<dyn Fn()>::new(move || {
+        if let Some(new_view) = view_from_hash(&current_hash()) {
+            view.set(new_view);
+        }
+    });
+    if let Some(window) = web_sys::window() {
+        let _ = window.add_event_listener_with_callback(
+            "hashchange",
+            on_hashchange.as_ref().unchecked_ref(),
+        );
+    }
+    on_hashchange.forget();
+
+    // Sync view → hash when view changes
+    Effect::new(move || {
+        let current_view = view.get();
+        let new_hash = hash_for_view(&current_view);
+        if let Some(window) = web_sys::window() {
+            let old_hash = window.location().hash().unwrap_or_default();
+            if old_hash != new_hash {
+                let _ = window.location().set_hash(new_hash);
+            }
+        }
     });
 
     let toggle_theme = move |_| {
