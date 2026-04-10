@@ -277,7 +277,7 @@ pub fn DesignsPage(
                                                                         class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                                                                         on:click=move |_| {
                                                                             if let Some(at) = &design_for_preview.amount_text {
-                                                                                fonts::inject_font_link(&at.font_family);
+                                                                                fonts::inject_font_link_weighted(&at.font_family, at.font_weight);
                                                                             }
                                                                             preview_design.set(Some(design_for_preview.clone()));
                                                                         }
@@ -386,7 +386,7 @@ pub fn DesignsPage(
                                         </div>
                                         {amount_text.as_ref().map(|at| {
                                             let font = at.font_family.clone();
-                                            let color = at.color_hex.clone();
+                                            let weight = at.font_weight;
                                             let x_pct = at.x_offset_cm / NOTE_WIDTH_CM * 100.0;
                                             let y_pct = at.y_offset_cm / NOTE_HEIGHT_CM * 100.0;
                                             let w_pct = at.width_cm / NOTE_WIDTH_CM * 100.0;
@@ -402,7 +402,7 @@ pub fn DesignsPage(
                                                     <span
                                                         class="whitespace-nowrap"
                                                         style=format!(
-                                                            "font-family: '{font}', sans-serif; font-size: {fs:.3}cqh; color: {color}; line-height: 1;",
+                                                            "font-family: '{font}', sans-serif; font-size: {fs:.3}cqh; font-weight: {weight}; color: black; line-height: 1;",
                                                         )
                                                     >
                                                         {move || preview_text.get()}

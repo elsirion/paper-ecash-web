@@ -28,25 +28,36 @@ pub const GOOGLE_FONTS: &[&str] = &[
 ];
 
 /// Inject a Google Fonts CSS link into the document head for preview rendering.
-pub fn inject_font_link(family: &str) {
+/// If `weight` is 0 or not specified, loads all available weights.
+pub fn inject_font_link_weighted(family: &str, weight: u16) {
     let Some(window) = web_sys::window() else { return };
     let Some(document) = window.document() else { return };
     let Some(head) = document.head() else { return };
-    let link_id = format!("gfont-{}", family.replace(' ', "-"));
+    let link_id = format!("gfont-{}-{}", family.replace(' ', "-"), weight);
     if document.get_element_by_id(&link_id).is_some() {
         return;
     }
     let Ok(link) = document.create_element("link") else { return };
     let _ = link.set_attribute("id", &link_id);
     let _ = link.set_attribute("rel", "stylesheet");
-    let _ = link.set_attribute(
-        "href",
-        &format!(
+    let encoded = js_sys::encode_uri_component(family);
+    let href = if weight > 0 {
+        format!(
+            "https://fonts.googleapis.com/css2?family={}:wght@{weight}&display=swap",
+            encoded
+        )
+    } else {
+        format!(
             "https://fonts.googleapis.com/css2?family={}&display=swap",
-            js_sys::encode_uri_component(family)
-        ),
-    );
+            encoded
+        )
+    };
+    let _ = link.set_attribute("href", &href);
     let _ = head.append_child(&link);
+}
+
+pub fn inject_font_link(family: &str) {
+    inject_font_link_weighted(family, 0);
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -91,8 +102,8 @@ pub async fn fetch_font_list() -> anyhow::Result<Vec<FontEntry>> {
     Ok(metadata.family_metadata_list)
 }
 
-pub async fn fetch_font_woff2(family: &str) -> anyhow::Result<(String, Vec<u8>)> {
-    let promise = browser::fetch_font_woff2_js(family).map_err(browser::js_error)?;
+pub async fn fetch_font_woff2(family: &str, weight: u16) -> anyhow::Result<(String, Vec<u8>)> {
+    let promise = browser::fetch_font_woff2_js(family, weight).map_err(browser::js_error)?;
     let value = wasm_bindgen_futures::JsFuture::from(promise)
         .await
         .map_err(browser::js_error)?;

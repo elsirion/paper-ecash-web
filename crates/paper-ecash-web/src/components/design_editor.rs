@@ -101,7 +101,7 @@ pub fn DesignEditor(
         t.font_family.clone()
     }).unwrap_or_else(|| "Roboto".into()));
     let text_font_search = RwSignal::new(String::new());
-    let text_color = RwSignal::new(init_text.as_ref().map(|t| t.color_hex.clone()).unwrap_or_else(|| "#000000".into()));
+    let text_weight = RwSignal::new(init_text.as_ref().map(|t| t.font_weight).unwrap_or(400u16));
     let text_x = RwSignal::new(init_text.as_ref().map(|t| t.x_offset_cm).unwrap_or(1.0));
     let text_y = RwSignal::new(init_text.as_ref().map(|t| t.y_offset_cm).unwrap_or(0.5));
     let text_w = RwSignal::new(init_text.as_ref().map(|t| t.width_cm).unwrap_or(4.0));
@@ -161,9 +161,10 @@ pub fn DesignEditor(
         text_font.set(family.clone());
         text_font_search.set(family.clone());
         show_font_dropdown.set(false);
-        fonts::inject_font_link(&family);
+        let weight = text_weight.get_untracked();
+        fonts::inject_font_link_weighted(&family, weight);
         wasm_bindgen_futures::spawn_local(async move {
-            match fonts::fetch_font_woff2(&family).await {
+            match fonts::fetch_font_woff2(&family, weight).await {
                 Ok((url, _)) => text_font_url.set(url),
                 Err(e) => tracing::warn!("Failed to fetch font woff2: {e}"),
             }
@@ -317,7 +318,7 @@ pub fn DesignEditor(
             font_family: text_font.get_untracked(),
             font_url: text_font_url.get_untracked(),
             font_size_pt,
-            color_hex: text_color.get_untracked(),
+            font_weight: text_weight.get_untracked(),
             x_offset_cm: text_x.get_untracked(),
             y_offset_cm: text_y.get_untracked(),
             width_cm: box_w,
@@ -357,7 +358,7 @@ pub fn DesignEditor(
                 "font_family": text_font.get(),
                 "font_url": text_font_url.get(),
                 "font_size_pt": box_h * 0.75 * 28.3465,
-                "color_hex": text_color.get(),
+                "font_weight": text_weight.get(),
                 "x_offset_cm": text_x.get(),
                 "y_offset_cm": text_y.get(),
                 "width_cm": text_w.get(),
@@ -724,15 +725,48 @@ pub fn DesignEditor(
                                 }}
                             </div>
 
-                            // Color
+                            // Weight
                             <div>
-                                <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Color"</label>
-                                <input
-                                    type="color"
-                                    class="block w-full h-[38px] p-1 text-sm bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
-                                    prop:value=move || text_color.get()
-                                    on:input=move |ev| text_color.set(event_target_value(&ev))
-                                />
+                                <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Weight"</label>
+                                <select
+                                    class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    on:change=move |ev| {
+                                        if let Ok(w) = event_target_value(&ev).parse::<u16>() {
+                                            text_weight.set(w);
+                                            let family = text_font.get_untracked();
+                                            fonts::inject_font_link_weighted(&family, w);
+                                            wasm_bindgen_futures::spawn_local(async move {
+                                                match fonts::fetch_font_woff2(&family, w).await {
+                                                    Ok((url, _)) => text_font_url.set(url),
+                                                    Err(e) => tracing::warn!("Failed to fetch font woff2: {e}"),
+                                                }
+                                            });
+                                        }
+                                    }
+                                >
+                                    {[100, 200, 300, 400, 500, 600, 700, 800, 900].into_iter().map(|w| {
+                                        let label = match w {
+                                            100 => "100 Thin",
+                                            200 => "200 Extra Light",
+                                            300 => "300 Light",
+                                            400 => "400 Regular",
+                                            500 => "500 Medium",
+                                            600 => "600 Semi Bold",
+                                            700 => "700 Bold",
+                                            800 => "800 Extra Bold",
+                                            900 => "900 Black",
+                                            _ => "",
+                                        };
+                                        view! {
+                                            <option
+                                                value=w.to_string()
+                                                selected=move || text_weight.get() == w
+                                            >
+                                                {label}
+                                            </option>
+                                        }
+                                    }).collect_view()}
+                                </select>
                             </div>
                         </div>
                     }.into_any()
@@ -793,7 +827,7 @@ pub fn DesignEditor(
                                             return view! { <span></span> }.into_any();
                                         }
                                         let font = text_font.get();
-                                        let color = text_color.get();
+                                        let weight = text_weight.get();
                                         let x_pct = text_x.get() / NOTE_WIDTH_CM * 100.0;
                                         let y_pct = text_y.get() / NOTE_HEIGHT_CM * 100.0;
                                         let w_pct = text_w.get() / NOTE_WIDTH_CM * 100.0;
@@ -811,7 +845,7 @@ pub fn DesignEditor(
                                                     style=move || {
                                                         let fs = h_pct * 0.75;
                                                         format!(
-                                                            "font-family: '{font}', sans-serif; font-size: {fs:.3}cqh; color: {color}; line-height: 1;",
+                                                            "font-family: '{font}', sans-serif; font-size: {fs:.3}cqh; font-weight: {weight}; color: black; line-height: 1;",
                                                         )
                                                     }
                                                 >

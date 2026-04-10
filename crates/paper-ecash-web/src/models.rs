@@ -5,7 +5,8 @@ pub struct TextConfig {
     pub font_family: String,
     pub font_url: String,
     pub font_size_pt: f64,
-    pub color_hex: String,
+    #[serde(default = "default_font_weight")]
+    pub font_weight: u16,
     /// Top-left of the text box, in cm from the top-left of the note.
     pub x_offset_cm: f64,
     pub y_offset_cm: f64,
@@ -17,6 +18,10 @@ pub struct TextConfig {
     /// Literal text to render. If None, falls back to formatted note amount.
     #[serde(default)]
     pub text: Option<String>,
+}
+
+fn default_font_weight() -> u16 {
+    400
 }
 
 fn default_width_cm() -> f64 {

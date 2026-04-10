@@ -115,11 +115,9 @@ pub fn StepPdf(
                 status_msg.set("Fetching font...".into());
                 match browser::fetch_image_bytes(&text_cfg.font_url).await {
                     Ok(font_bytes) => {
-                        let (r, g, b) = pdf::parse_hex_color(&text_cfg.color_hex);
                         Some(pdf::NoteTextConfig {
                             font_bytes,
                             font_size_pt: text_cfg.font_size_pt as f32,
-                            color_rgb: (r, g, b),
                             x_offset_cm: text_cfg.x_offset_cm as f32,
                             y_offset_cm: text_cfg.y_offset_cm as f32,
                             width_cm: text_cfg.width_cm as f32,

@@ -23,7 +23,7 @@ extern "C" {
     pub fn fetch_design_image(url: &str) -> Result<Promise, JsValue>;
 
     #[wasm_bindgen(catch, js_name = fetchFontWoff2)]
-    pub fn fetch_font_woff2_js(family: &str) -> Result<Promise, JsValue>;
+    pub fn fetch_font_woff2_js(family: &str, weight: u16) -> Result<Promise, JsValue>;
 
 }
 

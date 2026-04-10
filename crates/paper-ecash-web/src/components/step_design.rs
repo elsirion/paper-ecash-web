@@ -96,7 +96,7 @@ pub fn StepDesign(
             qr_size.set(design.qr_size_cm);
             qr_ec.set(design.qr_error_correction);
             if let Some(at) = &design.amount_text {
-                fonts::inject_font_link(&at.font_family);
+                fonts::inject_font_link_weighted(&at.font_family, at.font_weight);
             }
         }
     };
@@ -408,7 +408,7 @@ pub fn StepDesign(
                                 </div>
                                 {amount_text.as_ref().map(|at| {
                                     let font = at.font_family.clone();
-                                    let color = at.color_hex.clone();
+                                    let weight = at.font_weight;
                                     let x_pct = at.x_offset_cm / NOTE_WIDTH_CM * 100.0;
                                     let y_pct = at.y_offset_cm / NOTE_HEIGHT_CM * 100.0;
                                     let w_pct = at.width_cm / NOTE_WIDTH_CM * 100.0;
@@ -425,7 +425,7 @@ pub fn StepDesign(
                                             <span
                                                 class="whitespace-nowrap"
                                                 style=format!(
-                                                    "font-family: '{font}', sans-serif; font-size: {fs:.3}cqh; color: {color}; line-height: 1;",
+                                                    "font-family: '{font}', sans-serif; font-size: {fs:.3}cqh; font-weight: {weight}; color: black; line-height: 1;",
                                                 )
                                             >
                                                 {display}

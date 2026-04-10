@@ -3,19 +3,10 @@ use printpdf::*;
 pub struct NoteTextConfig {
     pub font_bytes: Vec<u8>,
     pub font_size_pt: f32,
-    pub color_rgb: (f32, f32, f32),
     pub x_offset_cm: f32,
     pub y_offset_cm: f32,
     pub width_cm: f32,
     pub height_cm: f32,
-}
-
-pub fn parse_hex_color(hex: &str) -> (f32, f32, f32) {
-    let hex = hex.trim_start_matches('#');
-    let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0) as f32 / 255.0;
-    let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0) as f32 / 255.0;
-    let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0) as f32 / 255.0;
-    (r, g, b)
 }
 
 /// A4 dimensions in mm
@@ -161,7 +152,6 @@ pub fn generate_pdf(
                 (&font_id, &parsed_font, &amount_text)
             {
                 if let Some(text) = texts.get(note_idx) {
-                    let (r, g, b) = text_cfg.color_rgb;
                     // Box top-left (PDF coords: y grows upward from bottom)
                     let box_x_pt = Mm(text_cfg.x_offset_cm * 10.0).into_pt().0;
                     let box_top_pt = y_bottom.0 + note_h_pt.0
@@ -191,9 +181,9 @@ pub fn generate_pdf(
                     front_ops.push(Op::StartTextSection);
                     front_ops.push(Op::SetFillColor {
                         col: Color::Rgb(Rgb {
-                            r,
-                            g,
-                            b,
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
                             icc_profile: None,
                         }),
                     });

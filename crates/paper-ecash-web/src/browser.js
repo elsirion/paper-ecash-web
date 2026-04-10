@@ -58,9 +58,10 @@ export function downloadBlob(bytes, filename, mimeType) {
  * Fetch a Google Font as TTF from the Fontsource CDN (via jsdelivr).
  * printpdf's font parser doesn't support woff2, so we need raw TTF.
  */
-export async function fetchFontWoff2(family) {
+export async function fetchFontWoff2(family, weight) {
   const slug = family.toLowerCase().replace(/\s+/g, '-');
-  const url = `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-400-normal.ttf`;
+  const w = weight || 400;
+  const url = `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-${w}-normal.ttf`;
   const resp = await fetch(url);
   if (!resp.ok) {
     throw new Error(`Failed to fetch TTF for "${family}": ${resp.status}`);
