@@ -93,9 +93,12 @@ pub fn Landing(
                                                     {ds.into_iter().map(|d| {
                                                         let name = d.name.clone();
                                                         let front_url = d.front_url.clone();
+                                                        let pc = d.paper_color.clone().unwrap_or_else(|| "#ffffff".into());
                                                         view! {
                                                             <div class="border-2 border-gray-200 dark:border-gray-700 rounded-lg p-2 text-center">
-                                                                <img src=front_url alt=name.clone() class="w-full h-auto rounded mb-1" />
+                                                                <div class="rounded mb-1" style=format!("background-color: {pc};")>
+                                                                    <img src=front_url alt=name.clone() class="w-full h-auto rounded" style="mix-blend-mode: multiply;" />
+                                                                </div>
                                                                 <span class="text-xs text-gray-600 dark:text-gray-400">{name}</span>
                                                             </div>
                                                         }

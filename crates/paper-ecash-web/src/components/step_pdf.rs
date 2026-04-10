@@ -223,6 +223,22 @@ pub fn StepPdf(
                                         )}
                                     </span>
                                 </div>
+                                {
+                                    let pc = designs::get_design(&designs.get_untracked(), &iss.config.design_id)
+                                        .and_then(|d| d.paper_color);
+                                    pc.map(|color| view! {
+                                        <div class="flex justify-between items-center text-sm py-1">
+                                            <span class="text-gray-500 dark:text-gray-400">"Paper color:"</span>
+                                            <span class="flex items-center gap-2 text-gray-900 dark:text-white">
+                                                <span
+                                                    class="inline-block w-4 h-4 rounded border border-gray-300 dark:border-gray-500"
+                                                    style=format!("background-color: {color};")
+                                                ></span>
+                                                {color}
+                                            </span>
+                                        </div>
+                                    })
+                                }
                             </div>
                         }
                     })

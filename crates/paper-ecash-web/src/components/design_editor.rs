@@ -64,7 +64,7 @@ pub fn DesignEditor(
     // Preserve existing id when editing; generate a new local: UUID for new designs on save.
     let existing_id = initial_design.as_ref().map(|d| d.id.clone());
 
-    let (init_name, init_front, init_back, init_overlay, init_qr_x, init_qr_y, init_qr_size, init_ec, init_text) =
+    let (init_name, init_front, init_back, init_overlay, init_qr_x, init_qr_y, init_qr_size, init_ec, init_text, init_paper_color) =
         if let Some(d) = &initial_design {
             (
                 d.name.clone(),
@@ -80,9 +80,10 @@ pub fn DesignEditor(
                     QrErrorCorrection::M => "M",
                 }.to_string(),
                 d.amount_text.clone(),
+                d.paper_color.clone().unwrap_or_else(|| "#ffffff".into()),
             )
         } else {
-            (String::new(), None, None, None, 0.0, 0.0, 7.0, "M".into(), None)
+            (String::new(), None, None, None, 0.0, 0.0, 7.0, "M".into(), None, "#ffffff".into())
         };
 
     let design_name = RwSignal::new(init_name);
@@ -111,6 +112,9 @@ pub fn DesignEditor(
 
     // Sample text shown in the amount text preview box
     let sample_text = RwSignal::new(String::from("1000 sats"));
+
+    // Paper color for preview (simulates printing on colored paper)
+    let paper_color = RwSignal::new(init_paper_color);
 
     // Drag state
     let dragging = RwSignal::new(Option::<DragMode>::None);
@@ -365,6 +369,12 @@ pub fn DesignEditor(
                 "height_cm": box_h,
             }));
         }
+        {
+            let c = paper_color.get();
+            if c != "#ffffff" {
+                json.as_object_mut().unwrap().insert("paper_color".into(), c.into());
+            }
+        }
         Some(serde_json::to_string_pretty(&json).unwrap_or_default())
     };
 
@@ -403,6 +413,10 @@ pub fn DesignEditor(
             },
             qr_overlay_url: overlay_url.get_untracked(),
             amount_text: build_amount_text(),
+            paper_color: {
+                let c = paper_color.get_untracked();
+                if c == "#ffffff" { None } else { Some(c) }
+            },
         })
     };
 
@@ -480,6 +494,21 @@ pub fn DesignEditor(
                         {move || back_url.get().map(|url| view! {
                             <img src=url class="h-10 rounded border border-gray-300 dark:border-gray-600" />
                         })}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Paper Color (preview only)"</label>
+                    <div class="flex items-center gap-3">
+                        <input
+                            type="color"
+                            class="h-[38px] w-16 p-1 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                            prop:value=move || paper_color.get()
+                            on:input=move |ev| paper_color.set(event_target_value(&ev))
+                        />
+                        <span class="text-xs text-gray-500 dark:text-gray-400">
+                            "Simulates printing on colored paper. White areas of the design become this color."
+                        </span>
                     </div>
                 </div>
 
@@ -728,11 +757,14 @@ pub fn DesignEditor(
                     if let Some(front) = front_url.get() {
                         let sample_qr = sample_qr_url.clone();
                         view! {
-                            <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
+                            <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
                                 <div
                                     node_ref=preview_ref
                                     class="relative w-full select-none"
-                                    style="aspect-ratio: 2 / 1; touch-action: none; container-type: size;"
+                                    style=move || format!(
+                                        "aspect-ratio: 2 / 1; touch-action: none; container-type: size; background-color: {};",
+                                        paper_color.get()
+                                    )
                                     on:pointermove=on_preview_pointermove
                                     on:pointerup=on_preview_pointerup
                                     on:pointercancel=move |_ev: web_sys::PointerEvent| dragging.set(None)
@@ -740,6 +772,7 @@ pub fn DesignEditor(
                                     <img
                                         src=front
                                         class="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                                        style="mix-blend-mode: multiply;"
                                         draggable="false"
                                     />
                                     // QR code overlay
@@ -754,6 +787,7 @@ pub fn DesignEditor(
                                         <img
                                             src=sample_qr.clone()
                                             class="w-full h-full object-fill qr-image pointer-events-none"
+                                            style="mix-blend-mode: multiply;"
                                             draggable="false"
                                         />
                                         {move || overlay_url.get().map(|url| view! {

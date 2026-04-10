@@ -24,6 +24,9 @@ pub struct Design {
     pub qr_error_correction: QrErrorCorrection,
     pub qr_overlay_url: Option<String>,
     pub amount_text: Option<TextConfig>,
+    /// Paper color for preview (simulates printing on colored paper). Not used in PDF.
+    #[serde(default)]
+    pub paper_color: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -35,6 +38,8 @@ struct DesignJson {
     qr: QrJson,
     #[serde(default)]
     amount_text: Option<TextConfig>,
+    #[serde(default)]
+    paper_color: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -82,6 +87,7 @@ pub async fn fetch_designs_from(base_url: &str) -> anyhow::Result<Vec<Design>> {
                     qr_error_correction: parse_ec(&dj.qr.error_correction),
                     qr_overlay_url: dj.qr.overlay.map(|o| format!("{base}/{o}")),
                     amount_text: dj.amount_text,
+                    paper_color: dj.paper_color,
                 });
             }
             Err(e) => {

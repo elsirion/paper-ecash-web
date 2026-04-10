@@ -33,6 +33,7 @@ pub fn DesignsPage(
     let add_error = RwSignal::new(Option::<String>::None);
     let preview_design: RwSignal<Option<Design>> = RwSignal::new(None);
     let preview_text = RwSignal::new("1048".to_string());
+    let paper_color = RwSignal::new("#ffffff".to_string());
 
     loading.set(true);
     wasm_bindgen_futures::spawn_local(async move {
@@ -261,14 +262,18 @@ pub fn DesignsPage(
                                                     let name = d.name.clone();
                                                     let front_url = d.front_url.clone();
                                                     let back_url = d.back_url.clone();
+                                                    let pc = d.paper_color.clone().unwrap_or_else(|| "#ffffff".into());
                                                     let design_for_edit = d.clone();
                                                     let design_for_preview = d.clone();
                                                     let on_edit = on_edit.clone();
                                                     view! {
                                                         <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                                            <div class="flex gap-1 p-2 bg-gray-50 dark:bg-gray-800">
-                                                                <img src=front_url alt="front" class="w-1/2 h-auto rounded" />
-                                                                <img src=back_url alt="back" class="w-1/2 h-auto rounded" />
+                                                            <div
+                                                                class="flex gap-1 p-2"
+                                                                style=format!("background-color: {pc};")
+                                                            >
+                                                                <img src=front_url class="w-1/2 h-auto rounded" style="mix-blend-mode: multiply;" />
+                                                                <img src=back_url class="w-1/2 h-auto rounded" style="mix-blend-mode: multiply;" />
                                                             </div>
                                                             <div class="flex items-center justify-between p-3">
                                                                 <span class="text-sm font-medium text-gray-900 dark:text-white">{name}</span>
@@ -321,6 +326,7 @@ pub fn DesignsPage(
                 let overlay = design.qr_overlay_url.clone();
                 let amount_text = design.amount_text.clone();
                 let has_amount_text = amount_text.is_some();
+                paper_color.set(design.paper_color.clone().unwrap_or_else(|| "#ffffff".into()));
                 view! {
                     <div class="mt-8 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
                         <div class="flex items-center justify-between mb-4">
@@ -335,34 +341,49 @@ pub fn DesignsPage(
                             </button>
                         </div>
 
-                        {if has_amount_text {
-                            view! {
-                                <div class="mb-4">
-                                    <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Amount Text"</label>
-                                    <input
-                                        type="text"
-                                        class="block w-full max-w-xs p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        prop:value=move || preview_text.get()
-                                        on:input=move |ev| preview_text.set(event_target_value(&ev))
-                                    />
-                                </div>
-                            }.into_any()
-                        } else {
-                            view! { <div></div> }.into_any()
-                        }}
+                        <div class="flex flex-wrap items-end gap-4 mb-4">
+                            {if has_amount_text {
+                                view! {
+                                    <div>
+                                        <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Amount Text"</label>
+                                        <input
+                                            type="text"
+                                            class="block w-full max-w-xs p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                            prop:value=move || preview_text.get()
+                                            on:input=move |ev| preview_text.set(event_target_value(&ev))
+                                        />
+                                    </div>
+                                }.into_any()
+                            } else {
+                                view! { <span></span> }.into_any()
+                            }}
+                            <div>
+                                <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Paper Color"</label>
+                                <input
+                                    type="color"
+                                    class="h-[38px] w-16 p-1 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                                    prop:value=move || paper_color.get()
+                                    on:input=move |ev| paper_color.set(event_target_value(&ev))
+                                />
+                            </div>
+                        </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             // Front preview with QR + amount text
                             <div>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">"Front"</p>
-                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
+                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
                                     <div
                                         class="relative w-full"
-                                        style="aspect-ratio: 2 / 1; container-type: size;"
+                                        style=move || format!(
+                                            "aspect-ratio: 2 / 1; container-type: size; background-color: {};",
+                                            paper_color.get()
+                                        )
                                     >
                                         <img
                                             src=front
                                             class="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                                            style="mix-blend-mode: multiply;"
                                             draggable="false"
                                         />
                                         <div
@@ -374,6 +395,7 @@ pub fn DesignsPage(
                                             <img
                                                 src=sample_qr
                                                 class="w-full h-full object-fill"
+                                                style="mix-blend-mode: multiply;"
                                                 draggable="false"
                                             />
                                             {overlay.map(|url| view! {
@@ -416,14 +438,18 @@ pub fn DesignsPage(
                             // Back preview
                             <div>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">"Back"</p>
-                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
+                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
                                     <div
                                         class="relative w-full"
-                                        style="aspect-ratio: 2 / 1;"
+                                        style=move || format!(
+                                            "aspect-ratio: 2 / 1; background-color: {};",
+                                            paper_color.get()
+                                        )
                                     >
                                         <img
                                             src=back
                                             class="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                                            style="mix-blend-mode: multiply;"
                                             draggable="false"
                                         />
                                     </div>

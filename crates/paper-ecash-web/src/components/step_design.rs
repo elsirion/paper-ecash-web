@@ -215,18 +215,21 @@ pub fn StepDesign(
                                                     let id2 = d.id.clone();
                                                     let name = d.name.clone();
                                                     let front_url = d.front_url.clone();
+                                                    let pc = d.paper_color.clone().unwrap_or_else(|| "#ffffff".into());
                                                     view! {
                                                         <div
                                                             class=move || {
                                                                 if design_id.get() == id {
-                                                                    "border-2 border-blue-500 dark:border-blue-400 rounded-lg p-2 cursor-pointer text-center bg-blue-50 dark:bg-blue-900/20 transition-all"
+                                                                    "border-2 border-blue-500 dark:border-blue-400 rounded-lg p-2 cursor-pointer text-center transition-all"
                                                                 } else {
                                                                     "border-2 border-gray-200 dark:border-gray-700 rounded-lg p-2 cursor-pointer text-center hover:border-gray-400 dark:hover:border-gray-500 transition-all"
                                                                 }
                                                             }
                                                             on:click=move |_| select_design(&id2)
                                                         >
-                                                            <img src=front_url alt=name.clone() class="w-full h-auto rounded mb-1" />
+                                                            <div class="rounded mb-1" style=format!("background-color: {pc};")>
+                                                                <img src=front_url alt=name.clone() class="w-full h-auto rounded" style="mix-blend-mode: multiply;" />
+                                                            </div>
                                                             <span class="text-xs text-gray-600 dark:text-gray-400">{name}</span>
                                                         </div>
                                                     }
@@ -373,17 +376,19 @@ pub fn StepDesign(
                 let qr_h = qr_sz / NOTE_HEIGHT_CM * 100.0;
                 let sample_qr = make_sample_qr_url(design.qr_error_correction);
                 let overlay = design.qr_overlay_url.clone();
+                let pc = design.paper_color.clone().unwrap_or_else(|| "#ffffff".into());
                 view! {
                     <div class="mb-6">
                         <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">"Preview"</h3>
-                        <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
+                        <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
                             <div
                                 class="relative w-full"
-                                style="aspect-ratio: 2 / 1; container-type: size;"
+                                style=format!("aspect-ratio: 2 / 1; container-type: size; background-color: {pc};")
                             >
                                 <img
                                     src=front
                                     class="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                                    style="mix-blend-mode: multiply;"
                                     draggable="false"
                                 />
                                 <div
@@ -396,6 +401,7 @@ pub fn StepDesign(
                                     <img
                                         src=sample_qr
                                         class="w-full h-full object-fill"
+                                        style="mix-blend-mode: multiply;"
                                         draggable="false"
                                     />
                                     {overlay.map(|url| view! {
