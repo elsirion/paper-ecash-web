@@ -207,6 +207,21 @@ pub fn StepPdf(
                                     <span class="text-gray-900 dark:text-white">{iss.ecash_notes.len()}</span>
                                 </div>
                                 <div class="flex justify-between text-sm py-1">
+                                    <span class="text-gray-500 dark:text-gray-400">"Per note:"</span>
+                                    <span class="text-gray-900 dark:text-white">
+                                        {crate::denomination::format_amount_msat(iss.per_note_amount_msat())}
+                                    </span>
+                                </div>
+                                <div class="flex justify-between text-sm py-1">
+                                    <span class="text-gray-500 dark:text-gray-400">"Denominations:"</span>
+                                    <span class="text-gray-900 dark:text-white">
+                                        {iss.config.denominations_msat.iter()
+                                            .map(|d| crate::denomination::format_amount_msat(*d))
+                                            .collect::<Vec<_>>()
+                                            .join(", ")}
+                                    </span>
+                                </div>
+                                <div class="flex justify-between text-sm py-1">
                                     <span class="text-gray-500 dark:text-gray-400">"Design:"</span>
                                     <span class="text-gray-900 dark:text-white">{
                                         designs::get_design(&designs.get_untracked(), &iss.config.design_id)
