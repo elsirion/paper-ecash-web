@@ -204,7 +204,23 @@ pub fn DesignsPage(
                             view! {
                                 <div>
                                     <div class="flex items-center justify-between mb-3">
-                                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{source_name}</h3>
+                                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                                            {source_name}
+                                            {if source_url == DEFAULT_DESIGNS_URL {
+                                                view! {
+                                                    <a
+                                                        href="https://github.com/elsirion/paper-ecash-note-designs"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        class="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                                                    >
+                                                        "(GitHub)"
+                                                    </a>
+                                                }.into_any()
+                                            } else {
+                                                view! { <span></span> }.into_any()
+                                            }}
+                                        </h3>
                                         {if is_removable {
                                             view! {
                                                 <button
