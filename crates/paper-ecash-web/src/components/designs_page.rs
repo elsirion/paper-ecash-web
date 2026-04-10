@@ -1,9 +1,22 @@
 use leptos::prelude::*;
 
+use crate::browser;
 use crate::designs::{self, Design, DesignSource, DEFAULT_DESIGNS_URL};
+use crate::fonts;
+use crate::models::QrErrorCorrection;
+use crate::qr;
 use crate::storage;
 
 const LOCAL_SOURCE: &str = "local:";
+const NOTE_WIDTH_CM: f64 = 14.0;
+const NOTE_HEIGHT_CM: f64 = 7.0;
+
+fn make_sample_qr_url(ec: QrErrorCorrection) -> String {
+    match qr::generate_qr_png_white(qr::SAMPLE_QR_DATA, ec, 4) {
+        Ok(png) => browser::png_object_url(&png),
+        Err(_) => String::new(),
+    }
+}
 
 type SourceGroup = (DesignSource, Vec<Design>);
 
@@ -18,6 +31,8 @@ pub fn DesignsPage(
     let new_source_name = RwSignal::new(String::new());
     let new_source_url = RwSignal::new(String::new());
     let add_error = RwSignal::new(Option::<String>::None);
+    let preview_design: RwSignal<Option<Design>> = RwSignal::new(None);
+    let preview_text = RwSignal::new("1048".to_string());
 
     loading.set(true);
     wasm_bindgen_futures::spawn_local(async move {
@@ -247,6 +262,7 @@ pub fn DesignsPage(
                                                     let front_url = d.front_url.clone();
                                                     let back_url = d.back_url.clone();
                                                     let design_for_edit = d.clone();
+                                                    let design_for_preview = d.clone();
                                                     let on_edit = on_edit.clone();
                                                     view! {
                                                         <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -256,12 +272,25 @@ pub fn DesignsPage(
                                                             </div>
                                                             <div class="flex items-center justify-between p-3">
                                                                 <span class="text-sm font-medium text-gray-900 dark:text-white">{name}</span>
-                                                                <button
-                                                                    class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                                                                    on:click=move |_| on_edit(design_for_edit.clone())
-                                                                >
-                                                                    "Open in Editor"
-                                                                </button>
+                                                                <div class="flex gap-2">
+                                                                    <button
+                                                                        class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                                                                        on:click=move |_| {
+                                                                            if let Some(at) = &design_for_preview.amount_text {
+                                                                                fonts::inject_font_link(&at.font_family);
+                                                                            }
+                                                                            preview_design.set(Some(design_for_preview.clone()));
+                                                                        }
+                                                                    >
+                                                                        "Preview"
+                                                                    </button>
+                                                                    <button
+                                                                        class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                                                                        on:click=move |_| on_edit(design_for_edit.clone())
+                                                                    >
+                                                                        "Fork"
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     }
@@ -272,6 +301,135 @@ pub fn DesignsPage(
                                 </div>
                             }
                         }).collect::<Vec<_>>()}
+                    </div>
+                }.into_any()
+            }}
+
+            // Preview panel
+            {move || {
+                let Some(design) = preview_design.get() else {
+                    return view! { <div></div> }.into_any();
+                };
+                let name = design.name.clone();
+                let front = design.front_url.clone();
+                let back = design.back_url.clone();
+                let qr_left = design.qr_x_offset_cm / NOTE_WIDTH_CM * 100.0;
+                let qr_top = design.qr_y_offset_cm / NOTE_HEIGHT_CM * 100.0;
+                let qr_w = design.qr_size_cm / NOTE_WIDTH_CM * 100.0;
+                let qr_h = design.qr_size_cm / NOTE_HEIGHT_CM * 100.0;
+                let sample_qr = make_sample_qr_url(design.qr_error_correction);
+                let overlay = design.qr_overlay_url.clone();
+                let amount_text = design.amount_text.clone();
+                let has_amount_text = amount_text.is_some();
+                view! {
+                    <div class="mt-8 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                                "Preview: " {name}
+                            </h3>
+                            <button
+                                class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                on:click=move |_| preview_design.set(None)
+                            >
+                                "Close"
+                            </button>
+                        </div>
+
+                        {if has_amount_text {
+                            view! {
+                                <div class="mb-4">
+                                    <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Amount Text"</label>
+                                    <input
+                                        type="text"
+                                        class="block w-full max-w-xs p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                        prop:value=move || preview_text.get()
+                                        on:input=move |ev| preview_text.set(event_target_value(&ev))
+                                    />
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! { <div></div> }.into_any()
+                        }}
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            // Front preview with QR + amount text
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">"Front"</p>
+                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
+                                    <div
+                                        class="relative w-full"
+                                        style="aspect-ratio: 2 / 1; container-type: size;"
+                                    >
+                                        <img
+                                            src=front
+                                            class="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                                            draggable="false"
+                                        />
+                                        <div
+                                            class="absolute pointer-events-none"
+                                            style=format!(
+                                                "left: {qr_left:.2}%; top: {qr_top:.2}%; width: {qr_w:.2}%; height: {qr_h:.2}%;",
+                                            )
+                                        >
+                                            <img
+                                                src=sample_qr
+                                                class="w-full h-full object-fill"
+                                                draggable="false"
+                                            />
+                                            {overlay.map(|url| view! {
+                                                <img
+                                                    src=url
+                                                    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[20%] h-[20%] object-contain"
+                                                    draggable="false"
+                                                />
+                                            })}
+                                        </div>
+                                        {amount_text.as_ref().map(|at| {
+                                            let font = at.font_family.clone();
+                                            let color = at.color_hex.clone();
+                                            let x_pct = at.x_offset_cm / NOTE_WIDTH_CM * 100.0;
+                                            let y_pct = at.y_offset_cm / NOTE_HEIGHT_CM * 100.0;
+                                            let w_pct = at.width_cm / NOTE_WIDTH_CM * 100.0;
+                                            let h_pct = at.height_cm / NOTE_HEIGHT_CM * 100.0;
+                                            let fs = h_pct * 0.75;
+                                            view! {
+                                                <div
+                                                    class="absolute pointer-events-none flex items-center justify-center"
+                                                    style=format!(
+                                                        "left: {x_pct:.2}%; top: {y_pct:.2}%; width: {w_pct:.2}%; height: {h_pct:.2}%;",
+                                                    )
+                                                >
+                                                    <span
+                                                        class="whitespace-nowrap"
+                                                        style=format!(
+                                                            "font-family: '{font}', sans-serif; font-size: {fs:.3}cqh; color: {color}; line-height: 1;",
+                                                        )
+                                                    >
+                                                        {move || preview_text.get()}
+                                                    </span>
+                                                </div>
+                                            }
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                            // Back preview
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">"Back"</p>
+                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
+                                    <div
+                                        class="relative w-full"
+                                        style="aspect-ratio: 2 / 1;"
+                                    >
+                                        <img
+                                            src=back
+                                            class="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                                            draggable="false"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 }.into_any()
             }}
