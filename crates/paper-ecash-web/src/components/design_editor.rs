@@ -607,7 +607,17 @@ pub fn DesignEditor(
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             // Font picker
                             <div class="col-span-3 relative">
-                                <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Font"</label>
+                                <div class="flex items-center gap-1 mb-1">
+                                    <label class="text-xs text-gray-500 dark:text-gray-400">"Font"</label>
+                                    <div class="relative group">
+                                        <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-gray-400 dark:text-gray-500 border border-gray-300 dark:border-gray-600 rounded-full cursor-help">
+                                            "?"
+                                        </span>
+                                        <div class="absolute left-0 bottom-full mb-1 w-64 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-20">
+                                            "Any font from Google Fonts can be used. Start typing to search the popular list, or enter any Google Font name and press Enter. The font is loaded for preview and its TTF file is fetched for PDF rendering."
+                                        </div>
+                                    </div>
+                                </div>
                                 <input
                                     type="text"
                                     placeholder="Search or type any Google Font name..."
