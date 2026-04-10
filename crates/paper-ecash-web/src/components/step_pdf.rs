@@ -279,6 +279,18 @@ pub fn StepPdf(
                     "Done"
                 </button>
                 <button
+                    class="px-5 py-2.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700 transition-colors"
+                    on:click=move |_| {
+                        let Some(iss) = issuance.get_untracked() else { return };
+                        if iss.ecash_notes.is_empty() { return; }
+                        let csv = iss.ecash_notes.join("\n");
+                        let filename = format!("paper_ecash_{}.csv", &iss.id[..8]);
+                        browser::download_file(csv.as_bytes(), &filename, "text/csv");
+                    }
+                >
+                    "Download Notes"
+                </button>
+                <button
                     class="px-5 py-2.5 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     disabled=move || generating.get()
                     on:click=move |_| generate()
