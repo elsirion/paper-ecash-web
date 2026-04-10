@@ -483,96 +483,44 @@ pub fn DesignEditor(
                     </div>
                 </div>
 
-                <div>
-                    <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"QR Overlay (optional)"</label>
-                    <div class="flex items-center gap-3">
-                        {move || {
-                            if overlay_url.get().is_some() {
-                                view! {
-                                    <div class="flex items-center gap-3 w-full">
-                                        <span class="text-sm text-green-600 dark:text-green-400">"Overlay loaded"</span>
-                                        <button
-                                            class="px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                            on:click=remove_overlay
-                                        >
-                                            "Remove"
-                                        </button>
-                                        {overlay_url.get().map(|url| view! {
-                                            <img src=url class="h-10 rounded border border-gray-300 dark:border-gray-600 bg-white" />
-                                        })}
-                                    </div>
-                                }.into_any()
-                            } else {
-                                view! {
-                                    <input
-                                        type="file"
-                                        accept="image/png"
-                                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:text-gray-400 dark:file:bg-blue-900/30 dark:file:text-blue-400"
-                                        on:change=on_overlay_change.clone()
-                                    />
-                                }.into_any()
-                            }
-                        }}
-                    </div>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        "An icon placed in the center of the QR code. Automatically increases minimum error correction to Q."
-                    </p>
-                </div>
-            </div>
-
-            // QR Settings
-            <div class="mb-6">
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">"QR Code Position & Size"</h3>
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"X Offset (cm)"</label>
-                        <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            prop:value=move || format!("{:.2}", qr_x.get())
-                            on:input=move |ev| {
-                                if let Ok(v) = event_target_value(&ev).parse() {
-                                    qr_x.set(v);
+                        <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"QR Overlay (optional)"</label>
+                        <div class="flex items-center gap-3">
+                            {move || {
+                                if overlay_url.get().is_some() {
+                                    view! {
+                                        <div class="flex items-center gap-3 w-full">
+                                            <span class="text-sm text-green-600 dark:text-green-400">"Overlay loaded"</span>
+                                            <button
+                                                class="px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                on:click=remove_overlay
+                                            >
+                                                "Remove"
+                                            </button>
+                                            {overlay_url.get().map(|url| view! {
+                                                <img src=url class="h-10 rounded border border-gray-300 dark:border-gray-600 bg-white" />
+                                            })}
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <input
+                                            type="file"
+                                            accept="image/png"
+                                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:text-gray-400 dark:file:bg-blue-900/30 dark:file:text-blue-400"
+                                            on:change=on_overlay_change.clone()
+                                        />
+                                    }.into_any()
                                 }
-                            }
-                        />
+                            }}
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            "An icon placed in the center of the QR code."
+                        </p>
                     </div>
                     <div>
-                        <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Y Offset (cm)"</label>
-                        <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            prop:value=move || format!("{:.2}", qr_y.get())
-                            on:input=move |ev| {
-                                if let Ok(v) = event_target_value(&ev).parse() {
-                                    qr_y.set(v);
-                                }
-                            }
-                        />
-                    </div>
-                    <div>
-                        <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Size (cm)"</label>
-                        <input
-                            type="number"
-                            step="any"
-                            min="0.5"
-                            class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            prop:value=move || format!("{:.2}", qr_size.get())
-                            on:input=move |ev| {
-                                if let Ok(v) = event_target_value(&ev).parse::<f64>() {
-                                    if v > 0.0 {
-                                        qr_size.set(v);
-                                    }
-                                }
-                            }
-                        />
-                    </div>
-                    <div>
-                        <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Error Correction"</label>
+                        <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Error Correction"</label>
                         <select
                             class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             on:change=move |ev| {
@@ -589,11 +537,11 @@ pub fn DesignEditor(
                             <option value="Q">"Q (25%)"</option>
                             <option value="H">"H (30%)"</option>
                         </select>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            "Overlay requires at least Q."
+                        </p>
                     </div>
                 </div>
-                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    "Drag the QR code in the preview to reposition. Drag the corner handle to resize."
-                </p>
             </div>
 
             // Amount Text Settings
