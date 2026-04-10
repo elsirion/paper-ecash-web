@@ -558,16 +558,6 @@ pub fn DesignEditor(
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
                     "Define where amount text will appear. The actual text is entered when selecting this design."
                 </p>
-                <div class="mb-3">
-                    <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Preview text"</label>
-                    <input
-                        type="text"
-                        placeholder="1000 sats"
-                        class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        prop:value=move || sample_text.get()
-                        on:input=move |ev| sample_text.set(event_target_value(&ev))
-                    />
-                </div>
 
                 {move || {
                     if !text_enabled.get() {
@@ -575,6 +565,16 @@ pub fn DesignEditor(
                     }
                     let select_font_clone = select_font.clone();
                     view! {
+                        <div class="mb-3">
+                            <label class="block mb-1 text-xs text-gray-500 dark:text-gray-400">"Preview text"</label>
+                            <input
+                                type="text"
+                                placeholder="1000 sats"
+                                class="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                prop:value=move || sample_text.get()
+                                on:input=move |ev| sample_text.set(event_target_value(&ev))
+                            />
+                        </div>
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             // Font picker
                             <div class="col-span-3 relative">
