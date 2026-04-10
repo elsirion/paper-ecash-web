@@ -33,22 +33,8 @@ pub fn Wizard(
 ) -> impl IntoView {
     let step = RwSignal::new(WizardStep::Federation);
     let issuance: RwSignal<Option<Issuance>> = RwSignal::new(None);
+    // Populated by StepDesign which loads all sources (default, local, custom)
     let designs: RwSignal<Vec<Design>> = RwSignal::new(Vec::new());
-
-    // Fetch designs
-    let designs_fetched = RwSignal::new(false);
-    Effect::new(move || {
-        if designs_fetched.get_untracked() {
-            return;
-        }
-        designs_fetched.set(true);
-        wasm_bindgen_futures::spawn_local(async move {
-            match crate::designs::fetch_designs().await {
-                Ok(d) => designs.set(d),
-                Err(e) => tracing::error!("Failed to fetch designs: {e:#}"),
-            }
-        });
-    });
 
     // Wizard config signals
     let invite_code = RwSignal::new(String::new());
