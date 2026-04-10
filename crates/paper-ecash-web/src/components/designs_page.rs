@@ -263,6 +263,8 @@ pub fn DesignsPage(
                                                     let front_url = d.front_url.clone();
                                                     let back_url = d.back_url.clone();
                                                     let pc = d.paper_color.clone().unwrap_or_else(|| "#ffffff".into());
+                                                    let is_local = source_url == LOCAL_SOURCE;
+                                                    let delete_id = d.id.clone();
                                                     let design_for_edit = d.clone();
                                                     let design_for_preview = d.clone();
                                                     let on_edit = on_edit.clone();
@@ -295,6 +297,33 @@ pub fn DesignsPage(
                                                                     >
                                                                         "Fork"
                                                                     </button>
+                                                                    {if is_local {
+                                                                        let delete_id = delete_id.clone();
+                                                                        view! {
+                                                                            <button
+                                                                                class="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                                                                title="Delete local design"
+                                                                                on:click=move |_| {
+                                                                                    storage::delete_local_design(&delete_id);
+                                                                                    // Refresh local group
+                                                                                    let mut groups = source_groups.get_untracked();
+                                                                                    for (src, ds) in groups.iter_mut() {
+                                                                                        if src.base_url == LOCAL_SOURCE {
+                                                                                            ds.retain(|d| d.id != delete_id);
+                                                                                        }
+                                                                                    }
+                                                                                    groups.retain(|(src, ds)| src.base_url != LOCAL_SOURCE || !ds.is_empty());
+                                                                                    source_groups.set(groups);
+                                                                                }
+                                                                            >
+                                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        }.into_any()
+                                                                    } else {
+                                                                        view! { <span></span> }.into_any()
+                                                                    }}
                                                                 </div>
                                                             </div>
                                                         </div>
