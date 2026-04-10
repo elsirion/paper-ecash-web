@@ -108,7 +108,7 @@ pub fn App() -> impl IntoView {
                     class="text-xl font-bold text-blue-600 dark:text-blue-400 cursor-pointer hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                     on:click=move |_| view.set(AppView::Landing)
                 >
-                    "Paper eCash"
+                    "Paper Ecash Tool"
                 </h1>
                 <div class="flex items-center gap-2">
                     <button
