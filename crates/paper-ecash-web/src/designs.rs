@@ -93,13 +93,20 @@ pub async fn fetch_designs_from(base_url: &str) -> anyhow::Result<Vec<Design>> {
 }
 
 pub fn get_design(designs: &[Design], id: &str) -> Option<Design> {
-    // Exact match first, then fall back to matching the suffix after ':'
-    // to handle old issuances that stored un-namespaced ids.
-    designs
+    // Exact match first
+    let result = designs
         .iter()
         .find(|d| d.id == id)
+        // Fall back: query is an old un-namespaced id, match against suffix of stored ids
         .or_else(|| designs.iter().find(|d| d.id.rsplit_once(':').is_some_and(|(_, suffix)| suffix == id)))
-        .cloned()
+        // Fall back: stored id is old un-namespaced, match against suffix of query
+        .or_else(|| id.rsplit_once(':').and_then(|(_, suffix)| designs.iter().find(|d| d.id == suffix)))
+        .cloned();
+    if result.is_none() && !id.is_empty() {
+        let available: Vec<&str> = designs.iter().map(|d| d.id.as_str()).collect();
+        tracing::warn!("get_design: no match for id={id:?}, available={available:?}");
+    }
+    result
 }
 
 async fn fetch_json<T: serde::de::DeserializeOwned>(url: &str) -> anyhow::Result<T> {
