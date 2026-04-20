@@ -114,13 +114,9 @@ pub fn StepIssue(
                     progress.set(i);
                     status_msg.set(format!("Issuing note {} of {}...", i + 1, count));
 
-                    match rt.spend_exact(denoms.clone(), true).await {
-                        Ok(notes) => {
-                            if notes.len() == 1 {
-                                all_notes.push(notes[0].clone());
-                            } else {
-                                all_notes.push(notes.join(","));
-                            }
+                    match rt.spend_exact(denoms.clone()).await {
+                        Ok(note) => {
+                            all_notes.push(note);
                         }
                         Err(e) => {
                             // Save what we have so far to localStorage as a
