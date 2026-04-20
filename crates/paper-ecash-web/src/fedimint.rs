@@ -119,8 +119,7 @@ impl WalletRuntimeCore {
     pub async fn spend_exact(
         &self,
         denominations_msat: &[u64],
-        include_invite: bool,
-    ) -> anyhow::Result<Vec<String>> {
+    ) -> anyhow::Result<String> {
         let client = self.ensure_client().await?;
         let mint = client.get_first_module::<MintClientModule>()?.inner();
 
@@ -153,22 +152,11 @@ impl WalletRuntimeCore {
             }
         };
 
-        // Split into individual OOBNotes strings
-        let mut result = Vec::new();
-        let federation_id_prefix = self.invite_code.federation_id().to_prefix();
+        // Wrap all denominations in a single OOBNotes envelope (always include
+        // the federation invite so the note is self-contained / redeemable)
+        let oob = OOBNotes::new_with_invite(notes, &self.invite_code);
 
-        for (amount, note) in notes.iter_items() {
-            let mut single = TieredMulti::default();
-            single.push(amount, *note);
-            let oob = if include_invite {
-                OOBNotes::new_with_invite(single, &self.invite_code)
-            } else {
-                OOBNotes::new(federation_id_prefix, single)
-            };
-            result.push(oob.to_string());
-        }
-
-        Ok(result)
+        Ok(oob.to_string())
     }
 
     /// Scan the operation log for an existing LN receive operation.
@@ -244,13 +232,9 @@ impl WalletRuntimeCore {
                 continue;
             };
 
-            // Convert each note to an OOBNotes string
-            for (amount, note) in notes.iter_items() {
-                let mut single = TieredMulti::default();
-                single.push(amount, *note);
-                let oob = OOBNotes::new_with_invite(single, &self.invite_code);
-                all_notes.push(oob.to_string());
-            }
+            // Wrap all denominations from this operation in a single OOBNotes envelope
+            let oob = OOBNotes::new_with_invite(notes, &self.invite_code);
+            all_notes.push(oob.to_string());
         }
         Ok(all_notes)
     }

@@ -95,12 +95,10 @@ impl WalletRuntime {
     pub async fn spend_exact(
         &self,
         denominations_msat: Vec<u64>,
-        include_invite: bool,
-    ) -> anyhow::Result<Vec<String>> {
+    ) -> anyhow::Result<String> {
         self.worker
             .request(Command::SpendExact {
                 denominations_msat,
-                include_invite,
             })
             .await
     }
@@ -205,11 +203,10 @@ async fn handle_request(
         }
         Command::SpendExact {
             denominations_msat,
-            include_invite,
         } => {
             with_runtime(&runtime, move |wallet| async move {
                 wallet
-                    .spend_exact(&denominations_msat, include_invite)
+                    .spend_exact(&denominations_msat)
                     .await
             })
             .await
@@ -372,7 +369,6 @@ enum Command {
     },
     SpendExact {
         denominations_msat: Vec<u64>,
-        include_invite: bool,
     },
     FindLnReceive,
     WaitForReceive {
