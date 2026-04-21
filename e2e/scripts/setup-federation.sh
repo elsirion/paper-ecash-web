@@ -155,32 +155,26 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
 # Extract the fed1 invite code from the gateway (it knows the federation)
-# The DKG connection string doesn't work for clients/gateways.
-# Try ALL fedimint-cli subcommands to find one that generates an invite code.
-echo "  Trying all invite code methods..."
+# Extract invite code by copying the client config to a temp dir and
+# initializing a client from it.
+echo "  Extracting invite code via client config..."
+TEMP_DIR="/tmp/fm-extract"
 
-# Method 1: invite-code with guardian data dir
-INV1=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
-  fedimint-cli --data-dir /data invite-code 0 2>&1 || true)
-echo "  Method 1 (guardian dir): ${INV1:0:80}"
+# Copy client config from guardian data to temp client dir
+$DC exec -T fedimintd mkdir -p "$TEMP_DIR" 2>/dev/null || true
+$DC exec -T fedimintd cp /data/client.json "$TEMP_DIR/client.json" 2>/dev/null || true
 
-# Method 2: invite-code from setup API
-INV2=$(fmsetup status 2>&1 || true)
-echo "  Method 2 (setup status): ${INV2:0:80}"
+# Generate invite code from the copied client config
+CLIENT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
+  fedimint-cli --data-dir "$TEMP_DIR" invite-code 0 2>&1 | tr -d '"' || true)
 
-# Method 3: List what files exist in guardian data dir
-echo "  Guardian data dir contents:"
-$DC exec -T fedimintd ls -la /data/ 2>&1 | head -10 || true
-
-# Method 4: Check if there's a client config
-echo "  Looking for federation config files..."
-$DC exec -T fedimintd find /data -name "*.json" -o -name "*.cfg" 2>&1 | head -5 || true
-
-# Method 5: fedimint-cli help for any other invite-related commands
-echo "  All fedimint-cli commands:"
-$DC exec -T fedimintd fedimint-cli --help 2>&1 | grep -i "invite\|join\|connect\|config" || true
-
-echo "  Invite code: ${INVITE_CODE:0:60}..."
+if [[ "$CLIENT_INVITE" == fed1* ]]; then
+  INVITE_CODE="$CLIENT_INVITE"
+  echo "  Got fed1 invite code: ${INVITE_CODE:0:60}..."
+else
+  echo "  invite-code from config failed: ${CLIENT_INVITE:0:120}"
+  echo "  Using DKG string (WASM app may not work): ${INVITE_CODE:0:60}..."
+fi
 
 echo "==> Waiting for gateway to connect"
 for i in $(seq 1 30); do
