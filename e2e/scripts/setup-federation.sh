@@ -148,48 +148,39 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# ── 7. Connect gateway and get proper invite code ─────────────
-echo "==> Connecting gateway to federation"
-gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
-
-# Now generate the proper fed1... invite code for the WASM client.
-# Use the guardian's data-dir which has the federation config.
-# Extract the fed1 invite code from the gateway (it knows the federation)
-# Generate the fed1... invite code from client.json using the helper binary
-echo "  Generating fed1 invite code from client config..."
+# ── 7. Generate fed1 invite code BEFORE connecting gateway ────
+echo "==> Generating fed1 invite code"
 mkdir -p "$E2E_DIR/.shared"
 $DC cp fedimintd:/data/client.json "$E2E_DIR/.shared/client.json"
 
-# The invite-code-helper binary was built during the WASM build phase
 HELPER="$E2E_DIR/../target/release/invite-code-helper"
-if [ ! -f "$HELPER" ]; then
-  HELPER="$E2E_DIR/../target/debug/invite-code-helper"
-fi
+[ ! -f "$HELPER" ] && HELPER="$E2E_DIR/../target/debug/invite-code-helper"
 
 if [ -f "$HELPER" ]; then
   CLIENT_INVITE=$("$HELPER" "$E2E_DIR/.shared/client.json" 2>&1 || true)
   if [[ "$CLIENT_INVITE" == fed1* ]]; then
-    # Replace Docker hostname with localhost for browser access
-    # (The invite code is bech32m-encoded so we can't do string replacement.
-    # The runner has "127.0.0.1 fedimintd" in /etc/hosts so the browser
-    # can resolve the Docker hostname.)
     INVITE_CODE="$CLIENT_INVITE"
     echo "  Got fed1 invite code: ${INVITE_CODE:0:60}..."
   else
     echo "  Helper failed: ${CLIENT_INVITE:0:120}"
   fi
 else
-  echo "  invite-code-helper binary not found at $HELPER"
+  echo "  ERROR: invite-code-helper binary not found"
+  exit 1
 fi
-echo "  Final invite code: ${INVITE_CODE:0:60}..."
 
-echo "==> Waiting for gateway to connect"
+# ── 8. Connect gateway using the fed1 invite code ─────────────
+echo "==> Connecting gateway to federation"
+gwcli connect-fed "$INVITE_CODE" 2>&1 || true
+
+echo "==> Waiting for gateway to register"
 for i in $(seq 1 30); do
-  if gwcli info 2>&1 | grep -q "federation"; then
-    echo "  Gateway connected (attempt $i)."
+  GW_FEDS=$(gwcli info 2>&1 | grep -c '"federation' || true)
+  if [ "$GW_FEDS" -ge 1 ]; then
+    echo "  Gateway registered with federation (attempt $i)."
     break
   fi
-  [ "$i" -eq 30 ] && { echo "ERROR: Gateway did not connect" >&2; exit 1; }
+  [ "$i" -eq 30 ] && { echo "ERROR: Gateway did not register" >&2; gwcli info 2>&1 >&2 || true; exit 1; }
   sleep 2
 done
 
