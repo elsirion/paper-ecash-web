@@ -128,7 +128,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        HASH=$$(gateway-cli create-password-hash testpass 2>&1)
+        HASH=$$(gateway-cli create-password-hash testpass 2>&1 | tr -d '"')
         echo "Hash: $$HASH"
         exec gatewayd \
           --data-dir=/data \
