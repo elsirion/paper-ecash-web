@@ -110,8 +110,12 @@ done
 echo "==> Setting up 1-of-1 federation"
 
 if ! fmcli admin status 2>/dev/null | grep -q "ConsensusRunning"; then
-  # v0.10.0 uses a single "setup" command for 1-of-1 DKG
-  fmcli admin setup --our-name "guardian-0"
+  # Show available setup subcommands for debugging
+  echo "  Available setup commands:"
+  fmcli admin setup ws://127.0.0.1:18174 --help 2>&1 | head -20 || true
+  echo "  ---"
+  # Try solo setup for 1-of-1 federation
+  fmcli admin setup ws://127.0.0.1:18174 solo
   echo "  DKG complete, consensus started."
 else
   echo "  Federation already running."
