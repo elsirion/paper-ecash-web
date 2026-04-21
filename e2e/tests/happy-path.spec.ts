@@ -17,8 +17,8 @@ test("full issuance flow: connect, pay, mint, download PDF", async ({
   await page.getByRole("button", { name: "Next" }).click();
 
   // ── Denomination step ────────────────────────────────────────
-  // Select the smallest denomination (1024 msat = "1.02 ksat")
-  await page.getByRole("button", { name: "1.02 ksat" }).click();
+  // Select the smallest denomination (1024 msat = "1.02 sat")
+  await page.getByRole("button", { name: "1.02 sat" }).click();
   await page.getByRole("button", { name: "Next" }).click();
 
   // ── Count step ───────────────────────────────────────────────

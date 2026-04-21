@@ -14,7 +14,7 @@ test("recover issuance after page reload mid-minting", async ({ page }) => {
   await page.getByRole("button", { name: "Next" }).click();
 
   // ── Denomination step ────────────────────────────────────────
-  await page.getByRole("button", { name: "1.02 ksat" }).click();
+  await page.getByRole("button", { name: "1.02 sat" }).click();
   await page.getByRole("button", { name: "Next" }).click();
 
   // ── Count step: 3 notes to give time for mid-issuance reload ─

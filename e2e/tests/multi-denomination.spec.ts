@@ -16,13 +16,13 @@ test("multi-denomination note is issued as a single OOBNotes envelope", async ({
   await page.getByRole("button", { name: "Next" }).click();
 
   // ── Denomination step: pick two denominations ────────────────
-  // 1024 msat = "1.02 ksat", 2048 msat = "2.05 ksat"
-  await page.getByRole("button", { name: "1.02 ksat" }).click();
-  await page.getByRole("button", { name: "2.05 ksat" }).click();
+  // 1024 msat = "1.02 sat", 2048 msat = "2.05 sat"
+  await page.getByRole("button", { name: "1.02 sat" }).click();
+  await page.getByRole("button", { name: "2.05 sat" }).click();
 
   // Verify the combined note value is shown
   await expect(page.getByText("Note value:")).toBeVisible();
-  await expect(page.getByText("3.07 ksat")).toBeVisible();
+  await expect(page.getByText("3.07 sat")).toBeVisible();
 
   await page.getByRole("button", { name: "Next" }).click();
 
@@ -53,8 +53,8 @@ test("multi-denomination note is issued as a single OOBNotes envelope", async ({
   await page.getByText("Generate PDF").first().waitFor();
 
   // Verify the summary shows both denominations
-  await expect(page.getByText("1.02 ksat")).toBeVisible();
-  await expect(page.getByText("2.05 ksat")).toBeVisible();
+  await expect(page.getByText("1.02 sat")).toBeVisible();
+  await expect(page.getByText("2.05 sat")).toBeVisible();
 
   // Generate and verify PDF
   const [download] = await Promise.all([
