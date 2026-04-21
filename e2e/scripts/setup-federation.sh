@@ -126,16 +126,12 @@ echo "  Federation should now be running."
 
 # ── 6. Extract invite code ─────────────────────────────────────
 echo "==> Extracting invite code"
-# Join the federation using the known API URL, then get the invite code
-fmcli join-federation ws://127.0.0.1:18174 2>/dev/null || true
-INVITE_CODE=$(fmcli invite-code 2>/dev/null | tr -d '"' || true)
+# invite-code <PEER> generates the invite code for the given peer
+INVITE_CODE=$(fmcli invite-code 0 2>/dev/null | tr -d '"' || true)
 
 if [ -z "$INVITE_CODE" ]; then
   echo "ERROR: Could not extract invite code" >&2
-  echo "  join-federation output:" >&2
-  fmcli join-federation ws://127.0.0.1:18174 2>&1 >&2 || true
-  echo "  invite-code output:" >&2
-  fmcli invite-code 2>&1 >&2 || true
+  fmcli invite-code 0 2>&1 >&2 || true
   exit 1
 fi
 echo "  Invite code: ${INVITE_CODE:0:60}..."
