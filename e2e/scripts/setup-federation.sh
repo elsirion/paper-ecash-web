@@ -124,27 +124,19 @@ fi
 sleep 5
 echo "  Federation should now be running."
 
-# ── 6. Extract invite code from the running federation ─────────
+# ── 6. Extract invite code ─────────────────────────────────────
 echo "==> Extracting invite code"
-# After DKG, fedimintd serves config at the API endpoint.
-# Use fedimint-cli admin invite-code to get the invite code from the setup API.
+# After DKG, fedimintd logs the invite code. Extract it from container logs.
 for i in $(seq 1 15); do
-  INVITE_CODE=$(fmsetup status 2>&1 | tr -d '"' || true)
-  # Try extracting via the admin interface
-  INVITE_CODE=$(fmcli admin invite-code 2>/dev/null | tr -d '"' || true)
-  [ -n "$INVITE_CODE" ] && break
-  # Try the direct invite-code command after joining
-  INVITE_CODE=$(fmcli invite-code 2>/dev/null | tr -d '"' || true)
+  INVITE_CODE=$($DC logs fedimintd 2>&1 | grep -oE 'fed1[a-z0-9]+' | tail -1 || true)
   [ -n "$INVITE_CODE" ] && break
   sleep 2
 done
 
 if [ -z "$INVITE_CODE" ]; then
-  echo "ERROR: Could not extract invite code. Debugging:" >&2
-  echo "  fmcli admin --help:" >&2
-  fmcli admin --help 2>&1 | head -20 >&2 || true
-  echo "  fmsetup status:" >&2
-  fmsetup status 2>&1 | head -5 >&2 || true
+  echo "ERROR: Could not find invite code in fedimintd logs" >&2
+  echo "  Last 20 lines of fedimintd logs:" >&2
+  $DC logs --tail=20 fedimintd 2>&1 >&2
   exit 1
 fi
 echo "  Invite code: ${INVITE_CODE:0:60}..."
