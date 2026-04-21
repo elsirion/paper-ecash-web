@@ -124,7 +124,25 @@ fi
 sleep 5
 echo "  Federation should now be running."
 
-# ── 6. Use the invite code captured from DKG ──────────────────
+# ── 6. Configure gateway mnemonic ──────────────────────────────
+echo "==> Configuring gateway mnemonic"
+# v0.10.0 gatewayd requires mnemonic to be set before it enters Running state
+gwcli seed 2>/dev/null || true
+echo "  Gateway mnemonic configured."
+
+# Wait for gateway to enter Running state
+echo "==> Waiting for gateway to start"
+for i in $(seq 1 30); do
+  GW_STATUS=$(gwcli info 2>&1 || true)
+  if echo "$GW_STATUS" | grep -qi "version\|running\|gateway_id"; then
+    echo "  Gateway running (attempt $i)."
+    break
+  fi
+  [ "$i" -eq 30 ] && { echo "ERROR: Gateway did not start" >&2; echo "$GW_STATUS" >&2; exit 1; }
+  sleep 2
+done
+
+# ── 7. Use the invite code captured from DKG ──────────────────
 echo "==> Using invite code from DKG"
 # The INVITE_CODE was captured from set-local-params during DKG above
 # (the fedimintaopang... string which is the v0.10.0 invite code format)
