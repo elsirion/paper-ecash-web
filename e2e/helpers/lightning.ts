@@ -20,9 +20,15 @@ export async function payInvoice(bolt11: string): Promise<void> {
     `lncli --network=regtest sendpayment --pay_req ${bolt11} --force`,
   );
   try {
-    await exec(cmd, { timeout: 60_000 });
+    const { stdout, stderr } = await exec(cmd, { timeout: 60_000 });
+    // sendpayment outputs result to stdout; check for failure
+    if (stdout.includes("FAILED") || stdout.includes("failure_reason")) {
+      throw new Error(`Payment failed: ${stdout}`);
+    }
   } catch (err: any) {
-    const msg = err.stderr || err.stdout || err.message || "unknown error";
+    const msg = [err.stdout, err.stderr, err.message]
+      .filter(Boolean)
+      .join("\n");
     throw new Error(`Payment failed: ${msg}`);
   }
 }
