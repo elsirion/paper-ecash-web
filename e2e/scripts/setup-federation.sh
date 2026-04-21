@@ -155,31 +155,41 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
 # Extract the fed1 invite code from the gateway (it knows the federation)
-# The DKG INVITE_CODE (fedimintaopang...) is a peer connection string, NOT
-# a client InviteCode. We need to construct a proper fed1... invite code.
+# The consensus API has a federation_invite_code endpoint.
+# Call it via fedimint-cli or directly via the JSON-RPC API.
+echo "  Fetching invite code from federation API..."
+
+# The fedimint JSON-RPC API uses the same WS endpoint.
+# fedimint-cli admin can call it if we use the right data-dir.
+# But admin commands need auth. Let's try calling the API directly.
 #
-# Strategy: use the setup API to get connection info, then create a
-# temporary client via restore, then extract the invite code.
-echo "  Generating fed1 invite code..."
+# The 'config' API endpoint returns the client config without auth.
+# We can use fedimint-cli --data-dir /data to call admin methods.
+CLIENT_INVITE=$(fmcli admin invite-code 2>&1 || true)
+echo "  admin invite-code: ${CLIENT_INVITE:0:80}"
 
-# Use the setup API connection info. The setup API should provide
-# an invite code now that consensus is running.
-SETUP_INFO=$(fmsetup set-local-params --federation-name "e2e-test" "extractor" 2>&1 || true)
-echo "  Setup info (first 80): ${SETUP_INFO:0:80}"
+# If admin invite-code doesn't exist, try fetching via the public API
+if [[ "$CLIENT_INVITE" != fed1* ]]; then
+  # Call the JSON-RPC endpoint directly using wget
+  CLIENT_INVITE=$($DC exec -T fedimintd sh -c '
+    wget -qO- --post-data "{\"jsonrpc\":\"2.0\",\"method\":\"federation_invite_code\",\"params\":[],\"id\":1}" \
+      --header="Content-Type: application/json" \
+      http://127.0.0.1:18174 2>/dev/null
+  ' | grep -oE 'fed1[a-z0-9]+' | head -1 || true)
+  echo "  JSON-RPC result: ${CLIENT_INVITE:0:80}"
+fi
 
-# The connection info from setup is the same fedimintaopang... format.
-# Let's try a different approach: use the gateway to get the invite code.
-# The gateway has a connect-fed endpoint that returns federation info.
-
-# Actually, the simplest approach: parse the client.json to extract
-# the federation_id and api_url, and use a small Python/node script
-# to construct the invite code. But these tools may not exist in the container.
-
-# Try: just get the JSON keys from client.json
-echo "  Top-level keys in client.json:"
-$DC exec -T fedimintd head -c 500 /data/client.json 2>&1 || true
-
-echo "  Invite code: ${INVITE_CODE:0:60}..."
+if [[ "$CLIENT_INVITE" == fed1* ]]; then
+  # Replace Docker hostname with localhost for browser access
+  # (The invite code is bech32m so we can't do string replacement.
+  # But since the API URL is ws://fedimintd:18174 and the runner has
+  # "127.0.0.1 fedimintd" in /etc/hosts, the browser CAN resolve it.)
+  INVITE_CODE="$CLIENT_INVITE"
+  echo "  Got fed1 invite code: ${INVITE_CODE:0:60}..."
+else
+  echo "  Could not get fed1 invite code."
+  echo "  Using DKG string (may not work): ${INVITE_CODE:0:60}..."
+fi
 
 echo "==> Waiting for gateway to connect"
 for i in $(seq 1 30); do

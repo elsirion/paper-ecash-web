@@ -79,7 +79,7 @@ pub fn StepFederation(
             }
             let trimmed = code.trim().to_string();
             if !trimmed.starts_with("fed1") && !trimmed.starts_with("fedimint") {
-                error.set(Some("Invalid invite code format. Should start with 'fed1' or 'fedimint'.".into()));
+                error.set(Some("Invalid invite code format.".into()));
                 return;
             }
             error.set(None);
