@@ -205,7 +205,14 @@ btc generatetoaddress 6 "$ADDR" > /dev/null
 echo "==> Waiting for gateway to fully initialize..."
 sleep 10
 
-# ── 9. Write invite code for Playwright ───────────────────────
+# ── 9. Start background block miner for federation consensus ──
+echo "==> Starting background block miner (every 2s)"
+(while true; do btc generatetoaddress 1 "$ADDR" > /dev/null 2>&1; sleep 2; done) &
+MINER_PID=$!
+echo "  Miner PID: $MINER_PID"
+echo "$MINER_PID" > "$E2E_DIR/.shared/miner.pid"
+
+# ── 10. Write invite code for Playwright ──────────────────────
 mkdir -p "$E2E_DIR/.shared"
 echo "$INVITE_CODE" > "$E2E_DIR/.shared/invite-code.txt"
 echo "==> Setup complete. Invite code written to .shared/invite-code.txt"
