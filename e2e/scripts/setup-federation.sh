@@ -155,7 +155,7 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
 echo "==> Generating client invite code"
-CLIENT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd fedimint-cli --data-dir /data invite-code 0 2>/dev/null | tr -d '"')
+CLIENT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd fedimint-cli --data-dir /data invite-code 0 2>&1 | tr -d '"' || true)
 
 if [[ "$CLIENT_INVITE" == fed1* ]]; then
   INVITE_CODE="$CLIENT_INVITE"
