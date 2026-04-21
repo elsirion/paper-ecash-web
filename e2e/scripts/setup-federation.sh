@@ -154,40 +154,9 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
-echo "==> Generating client invite code"
-# The invite code needs to be in fed1... bech32m format.
-# Use fedimint-cli admin guardian-config-backup to get the config which
-# contains the federation_id, then construct the invite code.
-# Alternative: use the admin API to get the invite code directly.
-#
-# Try: fedimint-cli with the guardian data dir should have access to
-# generate the invite code via the admin command set.
-
-# First, let's see what admin commands can give us the invite code
-echo "  Trying admin API for invite code..."
-ADMIN_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
-  fedimint-cli --data-dir /data admin invite-code 2>&1 || true)
-echo "  admin invite-code: ${ADMIN_INVITE:0:120}"
-
-# Try without 'admin' prefix
-DIRECT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
-  fedimint-cli --data-dir /data invite-code --peer 0 2>&1 || true)
-echo "  invite-code --peer 0: ${DIRECT_INVITE:0:120}"
-
-# Try the setup API for invite code after DKG
-SETUP_INVITE=$(fmsetup status 2>&1 || true)
-echo "  setup status: ${SETUP_INVITE:0:120}"
-
-# Check if any output starts with fed1
-for CANDIDATE in "$ADMIN_INVITE" "$DIRECT_INVITE"; do
-  CLEANED=$(echo "$CANDIDATE" | tr -d '"' | tr -d '\n')
-  if [[ "$CLEANED" == fed1* ]]; then
-    INVITE_CODE="$CLEANED"
-    echo "  Got fed1 invite code!"
-    break
-  fi
-done
-echo "  Final invite code: ${INVITE_CODE:0:60}..."
+# The INVITE_CODE from set-local-params is in the v0.10.0 internal format
+# (fedimintaopang...). The WASM app now accepts both fed1... and fedimint... prefixes.
+echo "  Invite code: ${INVITE_CODE:0:60}..."
 
 echo "==> Waiting for gateway to connect"
 for i in $(seq 1 30); do

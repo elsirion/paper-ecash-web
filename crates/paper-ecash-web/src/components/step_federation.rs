@@ -78,8 +78,8 @@ pub fn StepFederation(
                 return;
             }
             let trimmed = code.trim().to_string();
-            if !trimmed.starts_with("fed1") {
-                error.set(Some("Invalid invite code format. Should start with 'fed1'.".into()));
+            if !trimmed.starts_with("fed1") && !trimmed.starts_with("fedimint") {
+                error.set(Some("Invalid invite code format. Should start with 'fed1' or 'fedimint'.".into()));
                 return;
             }
             error.set(None);
@@ -118,7 +118,7 @@ pub fn StepFederation(
                                     id="invite-code"
                                     rows="3"
                                     class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                                    placeholder="fed11..."
+                                    placeholder="fed1... or fedimint..."
                                     prop:value=move || invite_code.get()
                                     on:input=move |ev| {
                                         invite_code.set(event_target_value(&ev));
