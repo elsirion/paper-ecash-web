@@ -155,23 +155,31 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
 # Extract the fed1 invite code from the gateway (it knows the federation)
-echo "  Dumping full gateway info..."
-GW_INFO=$(gwcli info 2>&1 || true)
-echo "$GW_INFO"
+# The DKG connection string doesn't work for clients/gateways.
+# Try ALL fedimint-cli subcommands to find one that generates an invite code.
+echo "  Trying all invite code methods..."
 
-# Try to find any invite code format
-FED1_CODE=$(echo "$GW_INFO" | grep -oE 'fed1[a-z0-9]+' | head -1 || true)
-FEDMINT_CODE=$(echo "$GW_INFO" | grep -oE 'fedimint[a-z0-9]+' | head -1 || true)
+# Method 1: invite-code with guardian data dir
+INV1=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
+  fedimint-cli --data-dir /data invite-code 0 2>&1 || true)
+echo "  Method 1 (guardian dir): ${INV1:0:80}"
 
-if [ -n "$FED1_CODE" ]; then
-  INVITE_CODE="$FED1_CODE"
-  echo "  Got fed1 invite code from gateway."
-elif [ -n "$FEDMINT_CODE" ]; then
-  INVITE_CODE="$FEDMINT_CODE"
-  echo "  Got fedimint invite code from gateway."
-else
-  echo "  No invite code in gateway info."
-fi
+# Method 2: invite-code from setup API
+INV2=$(fmsetup status 2>&1 || true)
+echo "  Method 2 (setup status): ${INV2:0:80}"
+
+# Method 3: List what files exist in guardian data dir
+echo "  Guardian data dir contents:"
+$DC exec -T fedimintd ls -la /data/ 2>&1 | head -10 || true
+
+# Method 4: Check if there's a client config
+echo "  Looking for federation config files..."
+$DC exec -T fedimintd find /data -name "*.json" -o -name "*.cfg" 2>&1 | head -5 || true
+
+# Method 5: fedimint-cli help for any other invite-related commands
+echo "  All fedimint-cli commands:"
+$DC exec -T fedimintd fedimint-cli --help 2>&1 | grep -i "invite\|join\|connect\|config" || true
+
 echo "  Invite code: ${INVITE_CODE:0:60}..."
 
 echo "==> Waiting for gateway to connect"
