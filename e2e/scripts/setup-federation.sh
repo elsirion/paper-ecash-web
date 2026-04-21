@@ -109,13 +109,12 @@ done
 # ── 5. Run 1-of-1 federation DKG ───────────────────────────────
 echo "==> Setting up 1-of-1 federation"
 
-if ! fmcli admin status 2>/dev/null | grep -q "ConsensusRunning"; then
-  # Show available setup subcommands for debugging
-  echo "  Available setup commands:"
-  fmcli admin setup ws://127.0.0.1:18174 --help 2>&1 | head -20 || true
-  echo "  ---"
-  # Try solo setup for 1-of-1 federation
-  fmcli admin setup ws://127.0.0.1:18174 solo
+fmsetup() { fmcli admin setup ws://127.0.0.1:18174 "$@"; }
+
+if ! fmcli admin status 2>/dev/null | grep -qi "consensus"; then
+  # v0.10.0 DKG: set-local-params → start-dkg (no peers for 1-of-1)
+  fmsetup set-local-params --our-name "guardian-0"
+  fmsetup start-dkg
   echo "  DKG complete, consensus started."
 else
   echo "  Federation already running."
@@ -123,17 +122,32 @@ fi
 
 echo "==> Waiting for federation consensus"
 for i in $(seq 1 30); do
-  if fmcli admin status 2>&1 | grep -q "ConsensusRunning"; then
+  STATUS=$(fmcli admin status 2>&1 || true)
+  if echo "$STATUS" | grep -qi "consensus\|running"; then
     echo "  Consensus running (attempt $i)."
     break
   fi
-  [ "$i" -eq 30 ] && { echo "ERROR: Federation consensus not running" >&2; exit 1; }
+  if [ "$((i % 10))" -eq 0 ]; then
+    echo "  (attempt $i/30 — status: ${STATUS:0:100})"
+  fi
+  [ "$i" -eq 30 ] && { echo "ERROR: Federation consensus not running" >&2; echo "$STATUS" >&2; exit 1; }
   sleep 2
 done
 
 # ── 6. Connect gateway to federation ───────────────────────────
-echo "==> Connecting gateway to federation"
-INVITE_CODE=$(fmcli dev invite-code | tr -d '"')
+echo "==> Extracting invite code"
+# Try different methods since the subcommand may vary across versions
+INVITE_CODE=$(fmcli dev invite-code 2>/dev/null | tr -d '"' || true)
+if [ -z "$INVITE_CODE" ]; then
+  INVITE_CODE=$(fmcli invite-code 2>/dev/null | tr -d '"' || true)
+fi
+if [ -z "$INVITE_CODE" ]; then
+  echo "ERROR: Could not extract invite code" >&2
+  echo "  Trying to list available commands:" >&2
+  fmcli --help 2>&1 | head -30 >&2 || true
+  exit 1
+fi
+echo "  Invite code: ${INVITE_CODE:0:40}..."
 
 gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 
