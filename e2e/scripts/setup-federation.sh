@@ -155,19 +155,29 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
 # Extract the fed1 invite code from the gateway (it knows the federation)
-# Extract the API URL from the federation config and show it.
-# The client.json contains the federation config with API endpoints.
-echo "  Extracting API URL from federation config..."
-API_URL=$($DC exec -T fedimintd grep -o '"ws://[^"]*"' /data/client.json 2>/dev/null | head -1 | tr -d '"' || true)
-echo "  API URL from config: $API_URL"
+# The DKG INVITE_CODE (fedimintaopang...) is a peer connection string, NOT
+# a client InviteCode. We need to construct a proper fed1... invite code.
+#
+# Strategy: use the setup API to get connection info, then create a
+# temporary client via restore, then extract the invite code.
+echo "  Generating fed1 invite code..."
 
-# Extract federation_id from client.json
-FED_ID=$($DC exec -T fedimintd grep -o '"federation_id":"[^"]*"' /data/client.json 2>/dev/null | head -1 | cut -d'"' -f4 || true)
-echo "  Federation ID: ${FED_ID:0:40}"
+# Use the setup API connection info. The setup API should provide
+# an invite code now that consensus is running.
+SETUP_INFO=$(fmsetup set-local-params --federation-name "e2e-test" "extractor" 2>&1 || true)
+echo "  Setup info (first 80): ${SETUP_INFO:0:80}"
 
-# Show relevant parts of client.json
-echo "  client.json (api_endpoints section):"
-$DC exec -T fedimintd grep -E "api_endpoint|federation_id|ws://" /data/client.json 2>&1 | head -5 || true
+# The connection info from setup is the same fedimintaopang... format.
+# Let's try a different approach: use the gateway to get the invite code.
+# The gateway has a connect-fed endpoint that returns federation info.
+
+# Actually, the simplest approach: parse the client.json to extract
+# the federation_id and api_url, and use a small Python/node script
+# to construct the invite code. But these tools may not exist in the container.
+
+# Try: just get the JSON keys from client.json
+echo "  Top-level keys in client.json:"
+$DC exec -T fedimintd head -c 500 /data/client.json 2>&1 || true
 
 echo "  Invite code: ${INVITE_CODE:0:60}..."
 
