@@ -154,9 +154,35 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
-# The INVITE_CODE from set-local-params is in the v0.10.0 internal format
-# (fedimintaopang...). The WASM app now accepts both fed1... and fedimint... prefixes.
-echo "  Invite code: ${INVITE_CODE:0:60}..."
+# The INVITE_CODE from set-local-params is a DKG peer connection string,
+# NOT a client invite code. We need to extract the fed1... invite code.
+# Use fedimint-cli with the guardian's /data dir and its admin capabilities
+# to get the invite code for peer 0.
+echo "  Generating fed1 invite code from guardian..."
+
+# The guardian data dir has the federation config. Create a temp client
+# dir and use the admin API to extract the invite code.
+ADMIN_CLIENT_DIR="/tmp/fm-admin-client"
+$DC exec -T -e FM_PASSWORD=testpass fedimintd mkdir -p "$ADMIN_CLIENT_DIR" 2>/dev/null || true
+
+# Try: join via the API URL (the fedimintd WS endpoint)
+$DC exec -T -e FM_PASSWORD=testpass fedimintd \
+  fedimint-cli --data-dir "$ADMIN_CLIENT_DIR" join-federation ws://127.0.0.1:18174 2>&1 || true
+
+# Now extract the invite code
+CLIENT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
+  fedimint-cli --data-dir "$ADMIN_CLIENT_DIR" invite-code 0 2>&1 | tr -d '"' || true)
+
+if [[ "$CLIENT_INVITE" == fed1* ]]; then
+  INVITE_CODE="$CLIENT_INVITE"
+  echo "  Got fed1 invite code: ${INVITE_CODE:0:60}..."
+else
+  echo "  Failed to get fed1 code. invite-code 0 output: ${CLIENT_INVITE:0:120}"
+  echo "  join-federation output:"
+  $DC exec -T fedimintd cat "$ADMIN_CLIENT_DIR/client.json" 2>&1 | head -5 || true
+  echo "  Trying to use DKG string anyway..."
+  echo "  Invite code: ${INVITE_CODE:0:60}..."
+fi
 
 echo "==> Waiting for gateway to connect"
 for i in $(seq 1 30); do
