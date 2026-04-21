@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/paper-ecash-web"]
+members = ["crates/paper-ecash-web", "crates/invite-code-helper"]
 resolver = "2"
 
 [workspace.package]

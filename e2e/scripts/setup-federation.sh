@@ -155,20 +155,32 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
 # Extract the fed1 invite code from the gateway (it knows the federation)
-# Use fedimint-cli dev api to call the federation_invite_code JSON-RPC method
-echo "  Calling federation_invite_code via dev api..."
-CLIENT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
-  fedimint-cli --data-dir /data dev api --peer-id 0 --password testpass \
-  federation_invite_code 2>&1 | tr -d '"' || true)
-echo "  Result: ${CLIENT_INVITE:0:80}"
+# Generate the fed1... invite code from client.json using the helper binary
+echo "  Generating fed1 invite code from client config..."
+$DC cp fedimintd:/data/client.json "$E2E_DIR/.shared/client.json"
 
-if [[ "$CLIENT_INVITE" == fed1* ]]; then
-  INVITE_CODE="$CLIENT_INVITE"
-  echo "  Got fed1 invite code!"
-else
-  echo "  Unexpected result. Using DKG string."
+# The invite-code-helper binary was built during the WASM build phase
+HELPER="$E2E_DIR/../target/release/invite-code-helper"
+if [ ! -f "$HELPER" ]; then
+  HELPER="$E2E_DIR/../target/debug/invite-code-helper"
 fi
-echo "  Invite code: ${INVITE_CODE:0:60}..."
+
+if [ -f "$HELPER" ]; then
+  CLIENT_INVITE=$("$HELPER" "$E2E_DIR/.shared/client.json" 2>&1 || true)
+  if [[ "$CLIENT_INVITE" == fed1* ]]; then
+    # Replace Docker hostname with localhost for browser access
+    # (The invite code is bech32m-encoded so we can't do string replacement.
+    # The runner has "127.0.0.1 fedimintd" in /etc/hosts so the browser
+    # can resolve the Docker hostname.)
+    INVITE_CODE="$CLIENT_INVITE"
+    echo "  Got fed1 invite code: ${INVITE_CODE:0:60}..."
+  else
+    echo "  Helper failed: ${CLIENT_INVITE:0:120}"
+  fi
+else
+  echo "  invite-code-helper binary not found at $HELPER"
+fi
+echo "  Final invite code: ${INVITE_CODE:0:60}..."
 
 echo "==> Waiting for gateway to connect"
 for i in $(seq 1 30); do

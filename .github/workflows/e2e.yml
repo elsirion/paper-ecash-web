@@ -36,8 +36,14 @@ jobs:
         with:
           shared-key: wasm-build
 
-      - name: Build WASM app
-        run: nix develop --command bash -c 'trunk build --release --public-url /'
+      - name: Build WASM app and invite-code helper
+        run: |
+          nix develop --command bash -c '
+            trunk build --release --public-url /
+            LIBCLANG_PATH=$(find /nix/store -name "libclang.so" -printf "%h" -quit 2>/dev/null)
+            export LIBCLANG_PATH
+            cargo build --release -p invite-code-helper
+          '
 
       # ── Phase 2: Start infrastructure ─────────────────────────
       - name: Pull Docker images
