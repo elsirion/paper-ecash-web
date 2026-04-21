@@ -32,8 +32,8 @@ echo "  Mined 200 blocks."
 # ── 2. Wait for LND nodes to sync ──────────────────────────────
 echo "==> Waiting for LND nodes to sync"
 for i in $(seq 1 90); do
-  GW_SYNCED=$(lndg getinfo 2>&1 | grep -c '"synced_to_chain": true' || true)
-  PAY_SYNCED=$(lndp getinfo 2>&1 | grep -c '"synced_to_chain": true' || true)
+  GW_SYNCED=$(lndg getinfo 2>&1 | grep -c '"synced_to_chain":.*true' || true)
+  PAY_SYNCED=$(lndp getinfo 2>&1 | grep -c '"synced_to_chain":.*true' || true)
   if [ "$GW_SYNCED" -ge 1 ] && [ "$PAY_SYNCED" -ge 1 ]; then
     echo "  Both LND nodes synced (attempt $i)."
     break
@@ -88,8 +88,8 @@ btc generatetoaddress 6 "$ADDR" > /dev/null
 
 echo "==> Waiting for channels to become active"
 for i in $(seq 1 60); do
-  GW_ACTIVE=$(lndg listchannels 2>&1 | grep -c '"active": true' || true)
-  PAY_ACTIVE=$(lndp listchannels 2>&1 | grep -c '"active": true' || true)
+  GW_ACTIVE=$(lndg listchannels 2>&1 | grep -c '"active":.*true' || true)
+  PAY_ACTIVE=$(lndp listchannels 2>&1 | grep -c '"active":.*true' || true)
   if [ "$GW_ACTIVE" -ge 1 ] && [ "$PAY_ACTIVE" -ge 1 ]; then
     echo "  Channels active (attempt $i)."
     break
