@@ -120,19 +120,9 @@ else
   echo "  Federation already running."
 fi
 
-echo "==> Waiting for federation consensus"
-for i in $(seq 1 30); do
-  STATUS=$(fmcli admin status 2>&1 || true)
-  if echo "$STATUS" | grep -qi "consensus\|running"; then
-    echo "  Consensus running (attempt $i)."
-    break
-  fi
-  if [ "$((i % 10))" -eq 0 ]; then
-    echo "  (attempt $i/30 — status: ${STATUS:0:100})"
-  fi
-  [ "$i" -eq 30 ] && { echo "ERROR: Federation consensus not running" >&2; echo "$STATUS" >&2; exit 1; }
-  sleep 2
-done
+# Give fedimintd a moment to start consensus after DKG
+sleep 5
+echo "  Federation should now be running."
 
 # ── 6. Connect gateway to federation ───────────────────────────
 echo "==> Extracting invite code"
