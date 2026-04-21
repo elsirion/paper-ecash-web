@@ -98,11 +98,24 @@ echo "==> Waiting for channels to become active"
 for i in $(seq 1 60); do
   GW_ACTIVE=$(lndg listchannels 2>&1 | grep -c '"active":.*true' || true)
   PAY_ACTIVE=$(lndp listchannels 2>&1 | grep -c '"active":.*true' || true)
-  if [ "$GW_ACTIVE" -ge 1 ] && [ "$PAY_ACTIVE" -ge 1 ]; then
-    echo "  Channels active (attempt $i)."
+  if [ "$GW_ACTIVE" -ge 2 ] && [ "$PAY_ACTIVE" -ge 2 ]; then
+    echo "  Both channels active on both nodes (attempt $i)."
     break
   fi
-  [ "$i" -eq 60 ] && { echo "ERROR: Channels not active" >&2; exit 1; }
+  [ "$i" -eq 60 ] && { echo "ERROR: Channels not active (gw=$GW_ACTIVE, pay=$PAY_ACTIVE)" >&2; exit 1; }
+  sleep 2
+done
+
+# Wait for graph sync so routing works
+echo "==> Waiting for graph sync"
+for i in $(seq 1 30); do
+  GW_SYNCED=$(lndg getinfo 2>&1 | grep -c '"synced_to_graph":.*true' || true)
+  PAY_SYNCED=$(lndp getinfo 2>&1 | grep -c '"synced_to_graph":.*true' || true)
+  if [ "$GW_SYNCED" -ge 1 ] && [ "$PAY_SYNCED" -ge 1 ]; then
+    echo "  Graph synced on both nodes (attempt $i)."
+    break
+  fi
+  [ "$i" -eq 30 ] && echo "  Warning: graph not fully synced (gw=$GW_SYNCED, pay=$PAY_SYNCED)"
   sleep 2
 done
 
