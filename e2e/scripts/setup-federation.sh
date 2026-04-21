@@ -22,7 +22,7 @@ lndp()  { $DC exec -T lnd-payer    lncli --network=regtest "$@"; }
 # Use the native binaries inside each container.
 # v0.10.0 uses FM_API_URL env var instead of --url flag.
 fmcli() { $DC exec -T -e FM_PASSWORD=testpass -e FM_API_URL=ws://127.0.0.1:18174 fedimintd fedimint-cli --data-dir /tmp/fm-client "$@"; }
-gwcli() { $DC exec -T -e FM_GATEWAY_API_ADDR=http://127.0.0.1:8175 -e FM_GATEWAY_PASSWORD=testpass gatewayd gateway-cli "$@"; }
+gwcli() { $DC exec -T -e FM_GATEWAY_PASSWORD=testpass gatewayd gateway-cli --address http://127.0.0.1:8175 "$@"; }
 
 # ── 1. Mine initial blocks ─────────────────────────────────────
 echo "==> Creating bitcoind wallet and mining initial blocks"
