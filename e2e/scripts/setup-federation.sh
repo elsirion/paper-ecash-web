@@ -154,31 +154,19 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
-# The DKG INVITE_CODE uses ws://fedimintd:18174 (Docker-internal).
-# The gateway connects via Docker networking. The browser connects via
-# localhost:18174 (port mapped). We add "127.0.0.1 fedimintd" to the
-# runner's /etc/hosts so the browser can also resolve "fedimintd".
-#
-# Join a temp client to get the fed1... invite code.
-echo "  Generating fed1 invite code..."
-ADMIN_CLIENT_DIR="/tmp/fm-client"
-$DC exec -T fedimintd mkdir -p "$ADMIN_CLIENT_DIR" 2>/dev/null || true
+# Extract the fed1 invite code from the gateway (it knows the federation)
+echo "  Extracting fed1 invite code from gateway info..."
+GW_INFO=$(gwcli info 2>&1 || true)
+echo "  Gateway info (first 200 chars): ${GW_INFO:0:200}"
 
-# Join using the DKG connection string
-JOIN_OUT=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
-  fedimint-cli --data-dir "$ADMIN_CLIENT_DIR" join-federation "$INVITE_CODE" 2>&1 || true)
-echo "  join-federation: ${JOIN_OUT:0:80}"
-
-# Extract the fed1 invite code
-CLIENT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
-  fedimint-cli --data-dir "$ADMIN_CLIENT_DIR" invite-code 0 2>&1 | tr -d '"' || true)
-
-if [[ "$CLIENT_INVITE" == fed1* ]]; then
-  INVITE_CODE="$CLIENT_INVITE"
-  echo "  Got fed1 invite code: ${INVITE_CODE:0:60}..."
+# Try to find fed1... in the gateway info output
+FED1_CODE=$(echo "$GW_INFO" | grep -oE 'fed1[a-z0-9]+' | head -1 || true)
+if [ -n "$FED1_CODE" ]; then
+  INVITE_CODE="$FED1_CODE"
+  echo "  Got fed1 invite code from gateway: ${INVITE_CODE:0:60}..."
 else
-  echo "  invite-code failed: ${CLIENT_INVITE:0:120}"
-  echo "  Using DKG string: ${INVITE_CODE:0:60}..."
+  echo "  No fed1 code in gateway info. Using DKG string."
+  echo "  Invite code: ${INVITE_CODE:0:60}..."
 fi
 
 echo "==> Waiting for gateway to connect"
