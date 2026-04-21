@@ -41,7 +41,10 @@ for i in $(seq 1 90); do
   if [ "$i" -eq 90 ]; then
     echo "ERROR: LND nodes did not sync after 90 attempts" >&2
     echo "  lnd-gateway synced: $GW_SYNCED, lnd-payer synced: $PAY_SYNCED" >&2
-    lndg getinfo 2>&1 | head -5 >&2 || true
+    echo "  lnd-gateway getinfo:" >&2
+    lndg getinfo 2>&1 | grep -i sync >&2 || true
+    echo "  lnd-payer getinfo:" >&2
+    lndp getinfo 2>&1 | grep -i sync >&2 || true
     exit 1
   fi
   [ "$((i % 15))" -eq 0 ] && echo "  (attempt $i/90 — gw=$GW_SYNCED pay=$PAY_SYNCED)"
