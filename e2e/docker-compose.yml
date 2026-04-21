@@ -106,7 +106,9 @@ services:
       # Critical: the invite code embeds this URL. The WASM client
       # in the browser resolves it, so it must be localhost.
       - --api-url=ws://localhost:18174
-      - --bitcoind-url=http://bitcoin:bitcoin@bitcoind:18443
+      - --bitcoind-url=http://bitcoind:18443
+      - --bitcoind-username=bitcoin
+      - --bitcoind-password=bitcoin
     depends_on:
       bitcoind:
         condition: service_healthy
