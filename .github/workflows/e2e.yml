@@ -1,0 +1,94 @@
+name: E2E Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # ── Phase 1: Build the WASM app ───────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clone fedimint fork
+        run: |
+          git clone --depth 1 --branch 2026-01-spend-exact-rebase \
+            https://github.com/elsirion/fedimint.git \
+            ../fedimint-fork
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm-build
+
+      - name: Build WASM app
+        run: nix develop --command bash -c 'trunk build --release --public-url /'
+
+      # ── Phase 2: Start infrastructure ─────────────────────────
+      - name: Pull Docker images
+        working-directory: e2e
+        run: docker compose pull
+
+      - name: Start services
+        working-directory: e2e
+        run: docker compose up -d --wait --wait-timeout 120
+
+      - name: Bootstrap federation
+        run: bash e2e/scripts/setup-federation.sh
+
+      # ── Phase 3: Run Playwright tests ─────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('e2e/package.json') }}
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: e2e
+        run: npx playwright test
+
+      # ── Phase 4: Artifacts ────────────────────────────────────
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+
+      - name: Upload test traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: e2e/test-results/
+
+      - name: Docker logs on failure
+        if: failure()
+        working-directory: e2e
+        run: docker compose logs --tail=200

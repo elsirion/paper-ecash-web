@@ -1,0 +1,163 @@
+volumes:
+  bitcoin-data:
+  lnd-gateway-data:
+  lnd-payer-data:
+  fm-data:
+  gw-data:
+
+networks:
+  e2e:
+
+x-lnd-common: &lnd-common
+  image: lightninglabs/lnd:v0.18.4-beta
+  restart: unless-stopped
+  networks: [e2e]
+  depends_on:
+    bitcoind:
+      condition: service_healthy
+
+services:
+  # ── Bitcoin ───────────────────────────────────────────────────
+  bitcoind:
+    image: btcpayserver/bitcoin:26.0
+    networks: [e2e]
+    ports: ["18443:18443"]
+    volumes: [bitcoin-data:/data]
+    environment:
+      BITCOIN_NETWORK: regtest
+      BITCOIN_EXTRA_ARGS: |
+        rpcuser=bitcoin
+        rpcpassword=bitcoin
+        rpcallowip=0.0.0.0/0
+        rpcbind=0.0.0.0
+        server=1
+        txindex=1
+        fallbackfee=0.00001
+        zmqpubrawblock=tcp://0.0.0.0:28332
+        zmqpubrawtx=tcp://0.0.0.0:28333
+    healthcheck:
+      test: bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin getblockchaininfo
+      interval: 3s
+      retries: 30
+
+  # ── Lightning: gateway-side node ──────────────────────────────
+  lnd-gateway:
+    <<: *lnd-common
+    ports: ["10009:10009"]
+    volumes: [lnd-gateway-data:/root/.lnd]
+    command:
+      - lnd
+      - --noseedbackup
+      - --bitcoin.active
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=bitcoin
+      - --bitcoind.rpcpass=bitcoin
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --tlsextradomain=lnd-gateway
+      - --tlsextraip=0.0.0.0
+    healthcheck:
+      test: lncli --network=regtest getinfo
+      interval: 3s
+      retries: 30
+
+  # ── Lightning: payer node (simulates external wallet) ─────────
+  lnd-payer:
+    <<: *lnd-common
+    ports: ["10010:10009"]
+    volumes: [lnd-payer-data:/root/.lnd]
+    command:
+      - lnd
+      - --noseedbackup
+      - --bitcoin.active
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=bitcoin
+      - --bitcoind.rpcpass=bitcoin
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --tlsextradomain=lnd-payer
+      - --tlsextraip=0.0.0.0
+    healthcheck:
+      test: lncli --network=regtest getinfo
+      interval: 3s
+      retries: 30
+
+  # ── Fedimint guardian (1-of-1) ────────────────────────────────
+  fedimintd:
+    image: fedimint/fedimintd:v0.10.0
+    networks: [e2e]
+    ports: ["18174:18174"]
+    volumes:
+      - fm-data:/data
+    environment:
+      FM_DATA_DIR: /data
+      FM_BIND_P2P: 0.0.0.0:18173
+      FM_P2P_URL: fedimint://fedimintd:18173
+      FM_BIND_API: 0.0.0.0:18174
+      # Critical: the invite code embeds this URL. The WASM client
+      # in the browser resolves it, so it must be localhost.
+      FM_API_URL: ws://localhost:18174
+      FM_BITCOIN_RPC_KIND: bitcoind
+      FM_BITCOIN_RPC_URL: http://bitcoin:bitcoin@bitcoind:18443
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:18174/config || exit 1"]
+      interval: 3s
+      retries: 30
+      start_period: 5s
+
+  # ── Fedimint Lightning gateway ────────────────────────────────
+  gatewayd:
+    image: fedimint/gatewayd:v0.10.0
+    networks: [e2e]
+    ports: ["8175:8175"]
+    volumes:
+      - gw-data:/data
+      - lnd-gateway-data:/lnd:ro
+    environment:
+      FM_GATEWAY_DATA_DIR: /data
+      FM_GATEWAY_LISTEN_ADDR: 0.0.0.0:8175
+      FM_GATEWAY_API_ADDR: http://gatewayd:8175
+      FM_LND_RPC_ADDR: https://lnd-gateway:10009
+      FM_LND_TLS_CERT: /lnd/tls.cert
+      FM_LND_MACAROON: /lnd/data/chain/bitcoin/regtest/admin.macaroon
+    depends_on:
+      lnd-gateway:
+        condition: service_healthy
+      fedimintd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8175/health || exit 1"]
+      interval: 3s
+      retries: 30
+      start_period: 5s
+
+  # ── WASM app served by nginx ──────────────────────────────────
+  webapp:
+    image: nginx:alpine
+    networks: [e2e]
+    ports: ["8080:8080"]
+    volumes:
+      - ../dist:/usr/share/nginx/html:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # ── One-shot setup helper (fedimint-cli + gateway-cli) ─────────
+  # Used by setup-federation.sh via: docker compose run --rm devtools <cmd>
+  devtools:
+    image: fedimint/devtools:v0.10.0
+    networks: [e2e]
+    profiles: [setup]
+    environment:
+      FM_PASSWORD: testpass
+      FM_CLIENT_DIR: /tmp/fm-client
+      FM_GATEWAY_API_ADDR: http://gatewayd:8175
