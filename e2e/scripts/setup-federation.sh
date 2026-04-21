@@ -53,8 +53,11 @@ done
 
 # ── 3. Fund both LND nodes ─────────────────────────────────────
 echo "==> Funding LND nodes"
-GW_ADDR=$(lndg newaddress p2wkh | grep -o '"address": "[^"]*"' | cut -d'"' -f4)
-PAY_ADDR=$(lndp newaddress p2wkh | grep -o '"address": "[^"]*"' | cut -d'"' -f4)
+# LND v0.18 uses "address":  "..." (double space in JSON output)
+GW_ADDR=$(lndg newaddress p2wkh | grep -o '"address":.*"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"')
+PAY_ADDR=$(lndp newaddress p2wkh | grep -o '"address":.*"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"')
+echo "  Gateway address: $GW_ADDR"
+echo "  Payer address: $PAY_ADDR"
 
 btc sendtoaddress "$GW_ADDR" 10
 btc sendtoaddress "$PAY_ADDR" 10
@@ -65,7 +68,7 @@ echo "==> Waiting for LND wallet balances"
 for i in $(seq 1 30); do
   GW_BAL=$(lndg walletbalance 2>&1 | grep '"confirmed_balance"' || true)
   PAY_BAL=$(lndp walletbalance 2>&1 | grep '"confirmed_balance"' || true)
-  if echo "$GW_BAL" | grep -q '"[1-9]' && echo "$PAY_BAL" | grep -q '"[1-9]'; then
+  if echo "$GW_BAL" | grep -qE '[1-9]' && echo "$PAY_BAL" | grep -qE '[1-9]'; then
     echo "  Balances confirmed (attempt $i)."
     break
   fi
@@ -75,8 +78,10 @@ done
 
 # ── 4. Connect peers and open channels ──────────────────────────
 echo "==> Connecting LND peers and opening channels"
-GW_PUBKEY=$(lndg getinfo | grep -o '"identity_pubkey": "[^"]*"' | cut -d'"' -f4)
-PAY_PUBKEY=$(lndp getinfo | grep -o '"identity_pubkey": "[^"]*"' | cut -d'"' -f4)
+GW_PUBKEY=$(lndg getinfo | grep '"identity_pubkey"' | grep -o '"[^"]*"$' | tr -d '"')
+PAY_PUBKEY=$(lndp getinfo | grep '"identity_pubkey"' | grep -o '"[^"]*"$' | tr -d '"')
+echo "  Gateway pubkey: $GW_PUBKEY"
+echo "  Payer pubkey: $PAY_PUBKEY"
 
 lndg connect "${PAY_PUBKEY}@lnd-payer:9735" 2>/dev/null || true
 
