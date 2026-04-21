@@ -17,7 +17,7 @@ function dc(service: string, cmd: string): string {
 export async function payInvoice(bolt11: string): Promise<void> {
   const cmd = dc(
     "lnd-payer",
-    `lncli --network=regtest payinvoice --force ${bolt11}`,
+    `lncli --network=regtest sendpayment --pay_req ${bolt11} --force`,
   );
   try {
     await exec(cmd, { timeout: 60_000 });
