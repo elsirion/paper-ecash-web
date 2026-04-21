@@ -19,8 +19,9 @@ btc_()  { $DC exec -T bitcoind     bitcoin-cli -regtest -rpcuser=bitcoin -rpcpas
 btc()   { btc_ -rpcwallet=test "$@"; }
 lndg()  { $DC exec -T lnd-gateway  lncli --network=regtest "$@"; }
 lndp()  { $DC exec -T lnd-payer    lncli --network=regtest "$@"; }
-fmcli() { $DC --profile setup run --rm devtools fedimint-cli --url ws://fedimintd:18174 "$@"; }
-gwcli() { $DC --profile setup run --rm devtools gateway-cli "$@"; }
+# Use the native binaries inside each container
+fmcli() { $DC exec -T -e FM_PASSWORD=testpass fedimintd fedimint-cli --url ws://127.0.0.1:18174 "$@"; }
+gwcli() { $DC exec -T gatewayd gateway-cli --address http://127.0.0.1:8175 "$@"; }
 
 # ── 1. Mine initial blocks ─────────────────────────────────────
 echo "==> Creating bitcoind wallet and mining initial blocks"
