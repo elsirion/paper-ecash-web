@@ -103,9 +103,9 @@ services:
       - --bind-p2p=0.0.0.0:18173
       - --p2p-url=fedimint://fedimintd:18173
       - --bind-api=0.0.0.0:18174
-      # Critical: the invite code embeds this URL. The WASM client
-      # in the browser resolves it, so it must be localhost.
-      - --api-url=ws://localhost:18174
+      # Use Docker-internal URL so the gateway can connect.
+      # The setup script will generate a separate browser-facing invite code.
+      - --api-url=ws://fedimintd:18174
       - --bitcoind-url=http://bitcoind:18443
       - --bitcoind-username=bitcoin
       - --bitcoind-password=bitcoin

@@ -154,22 +154,22 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
-# The INVITE_CODE from set-local-params is a DKG peer connection string,
-# NOT a client invite code. We need to extract the fed1... invite code.
-# Use fedimint-cli with the guardian's /data dir and its admin capabilities
-# to get the invite code for peer 0.
-echo "  Generating fed1 invite code from guardian..."
+# The DKG INVITE_CODE uses ws://fedimintd:18174 (Docker-internal).
+# The gateway connects via Docker networking. The browser connects via
+# localhost:18174 (port mapped). We add "127.0.0.1 fedimintd" to the
+# runner's /etc/hosts so the browser can also resolve "fedimintd".
+#
+# Join a temp client to get the fed1... invite code.
+echo "  Generating fed1 invite code..."
+ADMIN_CLIENT_DIR="/tmp/fm-client"
+$DC exec -T fedimintd mkdir -p "$ADMIN_CLIENT_DIR" 2>/dev/null || true
 
-# The guardian data dir has the federation config. Create a temp client
-# dir and use the admin API to extract the invite code.
-ADMIN_CLIENT_DIR="/tmp/fm-admin-client"
-$DC exec -T -e FM_PASSWORD=testpass fedimintd mkdir -p "$ADMIN_CLIENT_DIR" 2>/dev/null || true
+# Join using the DKG connection string
+JOIN_OUT=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
+  fedimint-cli --data-dir "$ADMIN_CLIENT_DIR" join-federation "$INVITE_CODE" 2>&1 || true)
+echo "  join-federation: ${JOIN_OUT:0:80}"
 
-# Try: join via the API URL (the fedimintd WS endpoint)
-$DC exec -T -e FM_PASSWORD=testpass fedimintd \
-  fedimint-cli --data-dir "$ADMIN_CLIENT_DIR" join-federation ws://127.0.0.1:18174 2>&1 || true
-
-# Now extract the invite code
+# Extract the fed1 invite code
 CLIENT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
   fedimint-cli --data-dir "$ADMIN_CLIENT_DIR" invite-code 0 2>&1 | tr -d '"' || true)
 
@@ -177,11 +177,8 @@ if [[ "$CLIENT_INVITE" == fed1* ]]; then
   INVITE_CODE="$CLIENT_INVITE"
   echo "  Got fed1 invite code: ${INVITE_CODE:0:60}..."
 else
-  echo "  Failed to get fed1 code. invite-code 0 output: ${CLIENT_INVITE:0:120}"
-  echo "  join-federation output:"
-  $DC exec -T fedimintd cat "$ADMIN_CLIENT_DIR/client.json" 2>&1 | head -5 || true
-  echo "  Trying to use DKG string anyway..."
-  echo "  Invite code: ${INVITE_CODE:0:60}..."
+  echo "  invite-code failed: ${CLIENT_INVITE:0:120}"
+  echo "  Using DKG string: ${INVITE_CODE:0:60}..."
 fi
 
 echo "==> Waiting for gateway to connect"

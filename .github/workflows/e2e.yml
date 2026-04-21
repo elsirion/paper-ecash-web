@@ -44,6 +44,9 @@ jobs:
         working-directory: e2e
         run: docker compose pull
 
+      - name: Add fedimintd to /etc/hosts
+        run: echo "127.0.0.1 fedimintd" | sudo tee -a /etc/hosts
+
       - name: Start services
         working-directory: e2e
         run: docker compose up -d --wait --wait-timeout 120
