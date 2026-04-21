@@ -126,20 +126,16 @@ echo "  Federation should now be running."
 
 # ── 6. Configure gateway mnemonic ──────────────────────────────
 echo "==> Configuring gateway mnemonic"
-# v0.10.0 gatewayd requires mnemonic to be set before it enters Running state.
-# Try different command names as this varies between versions.
-echo "  Attempting gateway-cli seed..."
-SEED_OUT=$(gwcli seed 2>&1 || true)
-echo "  seed output: ${SEED_OUT:0:200}"
+# v0.10.0 gatewayd needs mnemonic set via the cfg subcommand or REST API
+echo "  Available cfg commands:"
+gwcli cfg --help 2>&1 | head -15 || true
 
-if echo "$SEED_OUT" | grep -qi "error\|unrecognized\|not found"; then
-  echo "  Trying gateway-cli set-mnemonic..."
-  gwcli set-mnemonic 2>&1 || true
-fi
-
-# Also try gateway-cli --help to see available commands
-echo "  Available gateway commands:"
-gwcli --help 2>&1 | grep -E "^\s+\w" | head -20 || true
+# Try setting mnemonic via the REST API directly
+echo "  Setting mnemonic via REST API..."
+$DC exec -T gatewayd wget -qO- --post-data '{"mnemonic":null}' \
+  --header="Content-Type: application/json" \
+  --header="Authorization: Bearer testpass" \
+  "http://127.0.0.1:8175/set_configuration" 2>&1 || true
 
 # Wait for gateway to enter Running state
 echo "==> Waiting for gateway to start"
