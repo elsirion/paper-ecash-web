@@ -17,23 +17,27 @@ DC="docker compose"
 # ── helpers ─────────────────────────────────────────────────────
 btc_()  { $DC exec -T bitcoind     bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin "$@"; }
 btc()   { btc_ -rpcwallet=test "$@"; }
-lndg() { $DC exec -T lnd-gateway  lncli --network=regtest "$@"; }
-lndp() { $DC exec -T lnd-payer    lncli --network=regtest "$@"; }
-fmcli(){ $DC --profile setup run --rm devtools fedimint-cli --url ws://fedimintd:18174 "$@"; }
+lndg()  { $DC exec -T lnd-gateway  lncli --network=regtest "$@"; }
+lndp()  { $DC exec -T lnd-payer    lncli --network=regtest "$@"; }
+fmcli() { $DC --profile setup run --rm devtools fedimint-cli --url ws://fedimintd:18174 "$@"; }
 # FM_GATEWAY_API_ADDR is set in docker-compose.yml for the devtools service
-gwcli(){ $DC --profile setup run --rm devtools gateway-cli "$@"; }
+gwcli() { $DC --profile setup run --rm devtools gateway-cli "$@"; }
 
-wait_for() {
-  local label="$1"; shift
+retry() {
+  local label="$1" max_attempts="$2"; shift 2
   echo "  Waiting for $label..."
-  for _ in $(seq 1 60); do
-    if "$@" &>/dev/null; then
+  for i in $(seq 1 "$max_attempts"); do
+    if output=$("$@" 2>&1); then
       echo "  $label ready."
       return 0
     fi
+    if [ "$((i % 10))" -eq 0 ]; then
+      echo "    (attempt $i/$max_attempts — last error: ${output:0:120})"
+    fi
     sleep 2
   done
-  echo "ERROR: $label did not become ready" >&2
+  echo "ERROR: $label did not become ready after $max_attempts attempts" >&2
+  echo "  Last output: $output" >&2
   exit 1
 }
 
@@ -46,13 +50,15 @@ echo "  Mined 200 blocks."
 
 # ── 2. Wait for LND nodes to sync ──────────────────────────────
 echo "==> Waiting for LND nodes to sync"
-wait_for_lnd_sync() {
-  local output
-  output=$("$@" getinfo 2>/dev/null) || return 1
-  echo "$output" | grep -q '"synced_to_chain": true'
+check_lnd_synced() {
+  local node_cmd="$1"
+  local info
+  info=$($node_cmd getinfo 2>&1) || return 1
+  echo "$info" | grep -q '"synced_to_chain": true'
 }
-wait_for "lnd-gateway sync" wait_for_lnd_sync lndg
-wait_for "lnd-payer sync"   wait_for_lnd_sync lndp
+
+retry "lnd-gateway sync" 60 check_lnd_synced lndg
+retry "lnd-payer sync"   60 check_lnd_synced lndp
 
 # ── 3. Fund both LND nodes ─────────────────────────────────────
 echo "==> Funding LND nodes"
@@ -66,13 +72,14 @@ echo "  Funded both nodes with 10 BTC each."
 
 # Wait for LND to see the confirmed balance
 echo "==> Waiting for LND wallet balances"
-wait_for_balance() {
-  local output
-  output=$("$@" walletbalance 2>/dev/null) || return 1
-  echo "$output" | grep -q '"confirmed_balance": "[1-9]'
+check_lnd_funded() {
+  local node_cmd="$1"
+  local bal
+  bal=$($node_cmd walletbalance 2>&1) || return 1
+  echo "$bal" | grep -q '"confirmed_balance": "[1-9]'
 }
-wait_for "lnd-gateway balance" wait_for_balance lndg
-wait_for "lnd-payer balance"   wait_for_balance lndp
+retry "lnd-gateway balance" 30 check_lnd_funded lndg
+retry "lnd-payer balance"   30 check_lnd_funded lndp
 
 # ── 4. Connect peers and open channels ──────────────────────────
 echo "==> Connecting LND peers and opening channels"
@@ -89,13 +96,14 @@ lndp openchannel --node_key "$GW_PUBKEY" --local_amt 5000000 --push_amt 0
 btc generatetoaddress 6 "$ADDR" > /dev/null
 
 # Wait for channels to become active
-wait_for_channels() {
-  local output
-  output=$("$@" listchannels 2>/dev/null) || return 1
-  echo "$output" | grep -q '"active": true'
+check_channels_active() {
+  local node_cmd="$1"
+  local chans
+  chans=$($node_cmd listchannels 2>&1) || return 1
+  echo "$chans" | grep -q '"active": true'
 }
-wait_for "lnd-gateway channels active" wait_for_channels lndg
-wait_for "lnd-payer channels active"   wait_for_channels lndp
+retry "lnd-gateway channels active" 30 check_channels_active lndg
+retry "lnd-payer channels active"   30 check_channels_active lndp
 echo "  Channels open and active."
 
 # ── 5. Run 1-of-1 federation DKG ───────────────────────────────
@@ -113,14 +121,14 @@ else
 fi
 
 # Wait for consensus to be operational
-wait_for "federation consensus" fmcli admin status
+retry "federation consensus" 30 fmcli admin status
 
 # ── 6. Connect gateway to federation ───────────────────────────
 echo "==> Connecting gateway to federation"
 INVITE_CODE=$(fmcli dev invite-code | tr -d '"')
 
 gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
-wait_for "gateway federation" gwcli info
+retry "gateway federation" 30 gwcli info
 echo "  Gateway connected."
 
 # ── 7. Write invite code for Playwright ────────────────────────
