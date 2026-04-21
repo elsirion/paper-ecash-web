@@ -206,8 +206,8 @@ echo "==> Waiting for gateway to fully initialize..."
 sleep 10
 
 # ── 9. Start background block miner for federation consensus ──
-echo "==> Starting background block miner (every 2s)"
-(while true; do btc generatetoaddress 1 "$ADDR" > /dev/null 2>&1; sleep 2; done) &
+echo "==> Starting background block miner (every 1s)"
+(while true; do btc generatetoaddress 1 "$ADDR" > /dev/null 2>&1; sleep 1; done) &
 MINER_PID=$!
 echo "  Miner PID: $MINER_PID"
 echo "$MINER_PID" > "$E2E_DIR/.shared/miner.pid"
