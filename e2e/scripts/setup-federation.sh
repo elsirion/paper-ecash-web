@@ -157,6 +157,7 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Extract the fed1 invite code from the gateway (it knows the federation)
 # Generate the fed1... invite code from client.json using the helper binary
 echo "  Generating fed1 invite code from client config..."
+mkdir -p "$E2E_DIR/.shared"
 $DC cp fedimintd:/data/client.json "$E2E_DIR/.shared/client.json"
 
 # The invite-code-helper binary was built during the WASM build phase
