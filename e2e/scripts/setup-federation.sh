@@ -126,12 +126,15 @@ echo "  Federation should now be running."
 
 # ── 6. Configure gateway mnemonic ──────────────────────────────
 echo "==> Configuring gateway mnemonic"
-# Check set-mnemonic usage and try with no args (auto-generate)
-echo "  set-mnemonic help:"
-gwcli cfg set-mnemonic --help 2>&1 | head -10 || true
-echo "  Calling set-mnemonic..."
+# Check if gateway-cli auth works at all
+echo "  Testing gateway-cli info:"
+gwcli info 2>&1 | head -5 || true
+# Now try to set mnemonic
+echo "  Calling cfg set-mnemonic..."
 gwcli cfg set-mnemonic 2>&1 || true
-echo "  Gateway mnemonic configured (or already set)."
+# Also check gatewayd logs for the mnemonic status
+echo "  Gatewayd logs after set-mnemonic:"
+$DC logs --tail=5 gatewayd 2>&1 | grep -v "^$" || true
 
 # Wait for gateway to enter Running state
 echo "==> Waiting for gateway to start"
