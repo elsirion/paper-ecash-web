@@ -113,7 +113,7 @@ fmsetup() { fmcli admin setup ws://127.0.0.1:18174 "$@"; }
 
 if ! fmcli admin status 2>/dev/null | grep -qi "consensus"; then
   # v0.10.0 DKG: set-local-params → start-dkg (no peers for 1-of-1)
-  fmsetup set-local-params --our-name "guardian-0"
+  fmsetup set-local-params "guardian-0"
   fmsetup start-dkg
   echo "  DKG complete, consensus started."
 else
