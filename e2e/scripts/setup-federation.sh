@@ -155,26 +155,21 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
 # Extract the fed1 invite code from the gateway (it knows the federation)
-# Extract invite code by copying the client config to a temp dir and
-# initializing a client from it.
-echo "  Extracting invite code via client config..."
-TEMP_DIR="/tmp/fm-extract"
+# Extract the API URL from the federation config and show it.
+# The client.json contains the federation config with API endpoints.
+echo "  Extracting API URL from federation config..."
+API_URL=$($DC exec -T fedimintd grep -o '"ws://[^"]*"' /data/client.json 2>/dev/null | head -1 | tr -d '"' || true)
+echo "  API URL from config: $API_URL"
 
-# Copy client config from guardian data to temp client dir
-$DC exec -T fedimintd mkdir -p "$TEMP_DIR" 2>/dev/null || true
-$DC exec -T fedimintd cp /data/client.json "$TEMP_DIR/client.json" 2>/dev/null || true
+# Extract federation_id from client.json
+FED_ID=$($DC exec -T fedimintd grep -o '"federation_id":"[^"]*"' /data/client.json 2>/dev/null | head -1 | cut -d'"' -f4 || true)
+echo "  Federation ID: ${FED_ID:0:40}"
 
-# Generate invite code from the copied client config
-CLIENT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
-  fedimint-cli --data-dir "$TEMP_DIR" invite-code 0 2>&1 | tr -d '"' || true)
+# Show relevant parts of client.json
+echo "  client.json (api_endpoints section):"
+$DC exec -T fedimintd grep -E "api_endpoint|federation_id|ws://" /data/client.json 2>&1 | head -5 || true
 
-if [[ "$CLIENT_INVITE" == fed1* ]]; then
-  INVITE_CODE="$CLIENT_INVITE"
-  echo "  Got fed1 invite code: ${INVITE_CODE:0:60}..."
-else
-  echo "  invite-code from config failed: ${CLIENT_INVITE:0:120}"
-  echo "  Using DKG string (WASM app may not work): ${INVITE_CODE:0:60}..."
-fi
+echo "  Invite code: ${INVITE_CODE:0:60}..."
 
 echo "==> Waiting for gateway to connect"
 for i in $(seq 1 30); do
