@@ -126,17 +126,16 @@ echo "  Federation should now be running."
 
 # ── 6. Extract invite code ─────────────────────────────────────
 echo "==> Extracting invite code"
-# After DKG, fedimintd logs the invite code. Extract it from container logs.
-for i in $(seq 1 15); do
-  INVITE_CODE=$($DC logs fedimintd 2>&1 | grep -oE 'fed1[a-z0-9]+' | tail -1 || true)
-  [ -n "$INVITE_CODE" ] && break
-  sleep 2
-done
+# Join the federation using the known API URL, then get the invite code
+fmcli join-federation ws://127.0.0.1:18174 2>/dev/null || true
+INVITE_CODE=$(fmcli invite-code 2>/dev/null | tr -d '"' || true)
 
 if [ -z "$INVITE_CODE" ]; then
-  echo "ERROR: Could not find invite code in fedimintd logs" >&2
-  echo "  Last 20 lines of fedimintd logs:" >&2
-  $DC logs --tail=20 fedimintd 2>&1 >&2
+  echo "ERROR: Could not extract invite code" >&2
+  echo "  join-federation output:" >&2
+  fmcli join-federation ws://127.0.0.1:18174 2>&1 >&2 || true
+  echo "  invite-code output:" >&2
+  fmcli invite-code 2>&1 >&2 || true
   exit 1
 fi
 echo "  Invite code: ${INVITE_CODE:0:60}..."
