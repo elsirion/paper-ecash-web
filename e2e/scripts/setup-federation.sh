@@ -155,19 +155,24 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
 # Extract the fed1 invite code from the gateway (it knows the federation)
-echo "  Extracting fed1 invite code from gateway info..."
+echo "  Dumping full gateway info..."
 GW_INFO=$(gwcli info 2>&1 || true)
-echo "  Gateway info (first 200 chars): ${GW_INFO:0:200}"
+echo "$GW_INFO"
 
-# Try to find fed1... in the gateway info output
+# Try to find any invite code format
 FED1_CODE=$(echo "$GW_INFO" | grep -oE 'fed1[a-z0-9]+' | head -1 || true)
+FEDMINT_CODE=$(echo "$GW_INFO" | grep -oE 'fedimint[a-z0-9]+' | head -1 || true)
+
 if [ -n "$FED1_CODE" ]; then
   INVITE_CODE="$FED1_CODE"
-  echo "  Got fed1 invite code from gateway: ${INVITE_CODE:0:60}..."
+  echo "  Got fed1 invite code from gateway."
+elif [ -n "$FEDMINT_CODE" ]; then
+  INVITE_CODE="$FEDMINT_CODE"
+  echo "  Got fedimint invite code from gateway."
 else
-  echo "  No fed1 code in gateway info. Using DKG string."
-  echo "  Invite code: ${INVITE_CODE:0:60}..."
+  echo "  No invite code in gateway info."
 fi
+echo "  Invite code: ${INVITE_CODE:0:60}..."
 
 echo "==> Waiting for gateway to connect"
 for i in $(seq 1 30); do
