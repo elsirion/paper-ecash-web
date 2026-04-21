@@ -78,8 +78,9 @@ done
 
 # ── 4. Connect peers and open channels ──────────────────────────
 echo "==> Connecting LND peers and opening channels"
-GW_PUBKEY=$(lndg getinfo | grep '"identity_pubkey"' | grep -o '"[^"]*"$' | tr -d '"')
-PAY_PUBKEY=$(lndp getinfo | grep '"identity_pubkey"' | grep -o '"[^"]*"$' | tr -d '"')
+# Extract pubkeys (LND JSON: "identity_pubkey":  "abc123",)
+GW_PUBKEY=$(lndg getinfo | sed -n 's/.*"identity_pubkey":[[:space:]]*"\([^"]*\)".*/\1/p')
+PAY_PUBKEY=$(lndp getinfo | sed -n 's/.*"identity_pubkey":[[:space:]]*"\([^"]*\)".*/\1/p')
 echo "  Gateway pubkey: $GW_PUBKEY"
 echo "  Payer pubkey: $PAY_PUBKEY"
 
