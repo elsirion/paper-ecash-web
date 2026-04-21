@@ -197,7 +197,15 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# ── 7. Write invite code for Playwright ────────────────────────
+# Mine a few more blocks to help with channel announcement propagation
+echo "==> Mining extra blocks for channel announcements"
+btc generatetoaddress 6 "$ADDR" > /dev/null
+
+# Give the gateway time to fully register and publish its SCID alias
+echo "==> Waiting for gateway to fully initialize..."
+sleep 10
+
+# ── 9. Write invite code for Playwright ───────────────────────
 mkdir -p "$E2E_DIR/.shared"
 echo "$INVITE_CODE" > "$E2E_DIR/.shared/invite-code.txt"
 echo "==> Setup complete. Invite code written to .shared/invite-code.txt"
