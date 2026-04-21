@@ -124,16 +124,12 @@ fi
 sleep 5
 echo "  Federation should now be running."
 
-# ── 6. Extract invite code ─────────────────────────────────────
-echo "==> Extracting invite code"
-# Use the guardian's data-dir (/data) which has the federation config
-INVITE_CODE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd fedimint-cli --data-dir /data invite-code 0 2>/dev/null | tr -d '"' || true)
-
-# Validate it starts with fed1
-if [[ "$INVITE_CODE" != fed1* ]]; then
-  echo "ERROR: Invalid invite code: ${INVITE_CODE:0:80}" >&2
-  echo "  Trying with --help:" >&2
-  $DC exec -T fedimintd fedimint-cli --data-dir /data invite-code --help 2>&1 >&2 || true
+# ── 6. Use the invite code captured from DKG ──────────────────
+echo "==> Using invite code from DKG"
+# The INVITE_CODE was captured from set-local-params during DKG above
+# (the fedimintaopang... string which is the v0.10.0 invite code format)
+if [ -z "$INVITE_CODE" ]; then
+  echo "ERROR: No invite code captured from DKG" >&2
   exit 1
 fi
 echo "  Invite code: ${INVITE_CODE:0:60}..."
