@@ -124,17 +124,12 @@ services:
     volumes:
       - gw-data:/data
       - lnd-gateway-data:/lnd:ro
-    # Generate bcrypt hash at runtime to avoid $ escaping issues in YAML
+    # Generate bcrypt hash at runtime then start gatewayd
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        HASH=$$(gateway-cli create-password-hash --password testpass 2>&1) || true
-        echo "Generated hash: $$HASH"
-        if ! echo "$$HASH" | grep -q '^\$$2'; then
-          echo "Hash generation failed, trying positional arg..."
-          HASH=$$(gateway-cli create-password-hash testpass 2>&1) || true
-          echo "Hash attempt 2: $$HASH"
-        fi
+        HASH=$$(gateway-cli create-password-hash testpass 2>&1)
+        echo "Hash: $$HASH"
         exec gatewayd \
           --data-dir=/data \
           --listen=0.0.0.0:8175 \
