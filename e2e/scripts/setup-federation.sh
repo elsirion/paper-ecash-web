@@ -112,8 +112,8 @@ echo "==> Setting up 1-of-1 federation"
 fmsetup() { fmcli admin setup ws://127.0.0.1:18174 "$@"; }
 
 if ! fmcli admin status 2>/dev/null | grep -qi "consensus"; then
-  # v0.10.0 DKG: set-local-params → start-dkg (no peers for 1-of-1)
-  fmsetup set-local-params --federation-name "e2e-test" "guardian-0"
+  # v0.10.0 DKG: set-local-params returns the invite/connection code
+  INVITE_CODE=$(fmsetup set-local-params --federation-name "e2e-test" "guardian-0" 2>/dev/null | tr -d '"')
   fmsetup start-dkg
   echo "  DKG complete, consensus started."
 else
@@ -124,20 +124,23 @@ fi
 sleep 5
 echo "  Federation should now be running."
 
-# ── 6. Connect gateway to federation ───────────────────────────
-echo "==> Extracting invite code"
-# Try different methods since the subcommand may vary across versions
-INVITE_CODE=$(fmcli dev invite-code 2>/dev/null | tr -d '"' || true)
+# ── 6. Join and extract invite code ────────────────────────────
+echo "==> Joining federation and extracting invite code"
 if [ -z "$INVITE_CODE" ]; then
+  # Federation was already running; try to get invite code
   INVITE_CODE=$(fmcli invite-code 2>/dev/null | tr -d '"' || true)
 fi
+
+# Join with the invite code to initialize client state
+fmcli join-federation "$INVITE_CODE" 2>/dev/null || true
+
+# Now we can get the canonical invite code from the joined client
+INVITE_CODE=$(fmcli invite-code 2>/dev/null | tr -d '"' || true)
 if [ -z "$INVITE_CODE" ]; then
   echo "ERROR: Could not extract invite code" >&2
-  echo "  Trying to list available commands:" >&2
-  fmcli --help 2>&1 | head -30 >&2 || true
   exit 1
 fi
-echo "  Invite code: ${INVITE_CODE:0:40}..."
+echo "  Invite code: ${INVITE_CODE:0:60}..."
 
 gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 
