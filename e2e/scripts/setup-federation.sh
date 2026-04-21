@@ -15,7 +15,8 @@ cd "$E2E_DIR"
 DC="docker compose"
 
 # ── helpers ─────────────────────────────────────────────────────
-btc()  { $DC exec -T bitcoind     bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin "$@"; }
+btc_()  { $DC exec -T bitcoind     bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin "$@"; }
+btc()   { btc_ -rpcwallet=test "$@"; }
 lndg() { $DC exec -T lnd-gateway  lncli --network=regtest "$@"; }
 lndp() { $DC exec -T lnd-payer    lncli --network=regtest "$@"; }
 fmcli(){ $DC --profile setup run --rm devtools fedimint-cli --url ws://fedimintd:18174 "$@"; }
@@ -38,7 +39,7 @@ wait_for() {
 
 # ── 1. Mine initial blocks ─────────────────────────────────────
 echo "==> Creating bitcoind wallet and mining initial blocks"
-btc createwallet "test" 2>/dev/null || true
+btc_ createwallet "test" 2>/dev/null || btc_ loadwallet "test" 2>/dev/null || true
 ADDR=$(btc getnewaddress)
 btc generatetoaddress 200 "$ADDR" > /dev/null
 echo "  Mined 200 blocks."
