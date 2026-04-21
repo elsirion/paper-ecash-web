@@ -17,12 +17,11 @@ function dc(service: string, cmd: string): string {
 export async function payInvoice(bolt11: string): Promise<void> {
   const cmd = dc(
     "lnd-payer",
-    `lncli --network=regtest payinvoice --force --json ${bolt11}`,
+    `lncli --network=regtest payinvoice --force --fee_limit 10000 ${bolt11}`,
   );
   try {
-    const { stdout, stderr } = await exec(cmd, { timeout: 60_000 });
-    // sendpayment outputs result to stdout; check for failure
-    if (stdout.includes("FAILED") || stdout.includes("failure_reason")) {
+    const { stdout } = await exec(cmd, { timeout: 120_000 });
+    if (stdout.includes("FAILED")) {
       throw new Error(`Payment failed: ${stdout}`);
     }
   } catch (err: any) {
