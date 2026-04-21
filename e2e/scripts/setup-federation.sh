@@ -155,41 +155,20 @@ gwcli connect-fed "$INVITE_CODE" 2>/dev/null || true
 # Now generate the proper fed1... invite code for the WASM client.
 # Use the guardian's data-dir which has the federation config.
 # Extract the fed1 invite code from the gateway (it knows the federation)
-# The consensus API has a federation_invite_code endpoint.
-# Call it via fedimint-cli or directly via the JSON-RPC API.
-echo "  Fetching invite code from federation API..."
-
-# The fedimint JSON-RPC API uses the same WS endpoint.
-# fedimint-cli admin can call it if we use the right data-dir.
-# But admin commands need auth. Let's try calling the API directly.
-#
-# The 'config' API endpoint returns the client config without auth.
-# We can use fedimint-cli --data-dir /data to call admin methods.
-CLIENT_INVITE=$(fmcli admin invite-code 2>&1 || true)
-echo "  admin invite-code: ${CLIENT_INVITE:0:80}"
-
-# If admin invite-code doesn't exist, try fetching via the public API
-if [[ "$CLIENT_INVITE" != fed1* ]]; then
-  # Call the JSON-RPC endpoint directly using wget
-  CLIENT_INVITE=$($DC exec -T fedimintd sh -c '
-    wget -qO- --post-data "{\"jsonrpc\":\"2.0\",\"method\":\"federation_invite_code\",\"params\":[],\"id\":1}" \
-      --header="Content-Type: application/json" \
-      http://127.0.0.1:18174 2>/dev/null
-  ' | grep -oE 'fed1[a-z0-9]+' | head -1 || true)
-  echo "  JSON-RPC result: ${CLIENT_INVITE:0:80}"
-fi
+# Use fedimint-cli dev api to call the federation_invite_code JSON-RPC method
+echo "  Calling federation_invite_code via dev api..."
+CLIENT_INVITE=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
+  fedimint-cli --data-dir /data dev api --peer-id 0 --password testpass \
+  federation_invite_code 2>&1 | tr -d '"' || true)
+echo "  Result: ${CLIENT_INVITE:0:80}"
 
 if [[ "$CLIENT_INVITE" == fed1* ]]; then
-  # Replace Docker hostname with localhost for browser access
-  # (The invite code is bech32m so we can't do string replacement.
-  # But since the API URL is ws://fedimintd:18174 and the runner has
-  # "127.0.0.1 fedimintd" in /etc/hosts, the browser CAN resolve it.)
   INVITE_CODE="$CLIENT_INVITE"
-  echo "  Got fed1 invite code: ${INVITE_CODE:0:60}..."
+  echo "  Got fed1 invite code!"
 else
-  echo "  Could not get fed1 invite code."
-  echo "  Using DKG string (may not work): ${INVITE_CODE:0:60}..."
+  echo "  Unexpected result. Using DKG string."
 fi
+echo "  Invite code: ${INVITE_CODE:0:60}..."
 
 echo "==> Waiting for gateway to connect"
 for i in $(seq 1 30); do
