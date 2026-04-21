@@ -97,16 +97,16 @@ services:
     ports: ["18174:18174"]
     volumes:
       - fm-data:/data
-    environment:
-      FM_DATA_DIR: /data
-      FM_BIND_P2P: 0.0.0.0:18173
-      FM_P2P_URL: fedimint://fedimintd:18173
-      FM_BIND_API: 0.0.0.0:18174
+    command:
+      - fedimintd
+      - --data-dir=/data
+      - --bind-p2p=0.0.0.0:18173
+      - --p2p-url=fedimint://fedimintd:18173
+      - --bind-api=0.0.0.0:18174
       # Critical: the invite code embeds this URL. The WASM client
       # in the browser resolves it, so it must be localhost.
-      FM_API_URL: ws://localhost:18174
-      FM_BITCOIN_RPC_KIND: bitcoind
-      FM_BITCOIN_RPC_URL: http://bitcoin:bitcoin@bitcoind:18443
+      - --api-url=ws://localhost:18174
+      - --bitcoind-url=http://bitcoin:bitcoin@bitcoind:18443
     depends_on:
       bitcoind:
         condition: service_healthy
