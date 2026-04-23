@@ -125,6 +125,8 @@ services:
       - gw-data:/data
       - lnd-gateway-data:/lnd:ro
     # Generate bcrypt hash at runtime then start gatewayd
+    environment:
+      RUST_LOG: info,fm::gw=debug
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
