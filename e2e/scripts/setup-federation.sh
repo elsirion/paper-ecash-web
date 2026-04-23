@@ -220,9 +220,10 @@ sleep 10
 echo "==> Waiting for federation block sync..."
 CHAIN_HEIGHT=$(btc getblockcount)
 echo "  Chain height: $CHAIN_HEIGHT"
-for i in $(seq 1 120); do
+for i in $(seq 1 300); do
   # Check fedimintd logs for the last processed block height
-  LAST_HEIGHT=$($DC logs --tail=5 fedimintd 2>&1 | grep -oE 'height=[0-9]+' | tail -1 | cut -d= -f2 || echo "0")
+  # Strip ANSI codes first, then grep for height
+  LAST_HEIGHT=$($DC logs --tail=5 fedimintd 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -oE 'height=[0-9]+' | tail -1 | cut -d= -f2 || echo "0")
   if [ -n "$LAST_HEIGHT" ] && [ "$LAST_HEIGHT" -ge "$((CHAIN_HEIGHT - 1))" ] 2>/dev/null; then
     echo "  Federation synced to height $LAST_HEIGHT (chain: $CHAIN_HEIGHT) in ${i}s."
     break
