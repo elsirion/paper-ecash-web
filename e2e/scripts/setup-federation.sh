@@ -214,31 +214,17 @@ btc generatetoaddress 6 "$ADDR" > /dev/null
 echo "==> Waiting for gateway to fully initialize..."
 sleep 10
 
-# ── 9. Wait for federation to finish initial block sync.
-# The 1-of-1 federation processes ~224 initial blocks sequentially.
-# Each consensus session processes a batch of blocks. Mine a block
-# every 10s to trigger new sessions and keep consensus progressing.
-echo "==> Waiting for federation block sync (mining blocks to drive consensus)..."
-CHAIN_HEIGHT=$(btc getblockcount)
-echo "  Initial chain height: $CHAIN_HEIGHT"
-for i in $(seq 1 300); do
-  LAST_HEIGHT=$($DC logs --tail=3 fedimintd 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -oE 'height=[0-9]+' | tail -1 | cut -d= -f2 || echo "0")
-  if [ -n "$LAST_HEIGHT" ] && [ "$LAST_HEIGHT" -ge "$((CHAIN_HEIGHT - 1))" ] 2>/dev/null; then
-    echo "  Federation synced to height $LAST_HEIGHT (chain: $CHAIN_HEIGHT) in ${i}s."
-    # Mine one more block and wait for it to be processed
-    btc generatetoaddress 1 "$ADDR" > /dev/null
-    sleep 5
-    break
-  fi
-  # Mine a block every 30s to trigger new consensus sessions
-  # (federation processes ~5 blocks per 30s, so we gain ground)
-  if [ "$((i % 30))" -eq 0 ]; then
-    btc generatetoaddress 1 "$ADDR" > /dev/null 2>&1
-    CHAIN_HEIGHT=$(btc getblockcount)
-  fi
-  [ "$((i % 30))" -eq 0 ] && echo "  (${i}s — last height: ${LAST_HEIGHT:-?}, chain: $CHAIN_HEIGHT)"
-  sleep 1
-done
+# ── 9. Start background miner and let federation process blocks during tests.
+# The federation processes blocks during test execution. Start a slow
+# background miner to keep consensus advancing.
+echo "==> Starting background block miner (every 15s) for consensus"
+(while true; do
+  btc generatetoaddress 1 "$ADDR" > /dev/null 2>&1
+  sleep 15
+done) &
+echo "  Miner PID: $!"
+# Wait a bit for the first block to be mined and processed
+sleep 15
 
 # ── 10. Write invite code for Playwright ─────────────────────
 mkdir -p "$E2E_DIR/.shared"
