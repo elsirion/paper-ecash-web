@@ -230,8 +230,9 @@ for i in $(seq 1 300); do
     sleep 5
     break
   fi
-  # Mine a block every 10s to trigger new consensus sessions
-  if [ "$((i % 10))" -eq 0 ]; then
+  # Mine a block every 30s to trigger new consensus sessions
+  # (federation processes ~5 blocks per 30s, so we gain ground)
+  if [ "$((i % 30))" -eq 0 ]; then
     btc generatetoaddress 1 "$ADDR" > /dev/null 2>&1
     CHAIN_HEIGHT=$(btc getblockcount)
   fi
