@@ -214,26 +214,28 @@ btc generatetoaddress 6 "$ADDR" > /dev/null
 echo "==> Waiting for gateway to fully initialize..."
 sleep 10
 
-# ── 9. Wait for the federation to finish processing all blocks.
-# The wallet module processes ~224 blocks sequentially at ~1 block/sec.
-# Wait until fedimintd stops logging block processing.
-echo "==> Waiting for federation block sync..."
+# ── 9. Wait for federation to finish initial block sync.
+# The 1-of-1 federation processes ~224 initial blocks sequentially.
+# Each consensus session processes a batch of blocks. Mine a block
+# every 10s to trigger new sessions and keep consensus progressing.
+echo "==> Waiting for federation block sync (mining blocks to drive consensus)..."
 CHAIN_HEIGHT=$(btc getblockcount)
-echo "  Chain height: $CHAIN_HEIGHT"
+echo "  Initial chain height: $CHAIN_HEIGHT"
 for i in $(seq 1 300); do
-  # Check fedimintd logs for the last processed block height
-  # Strip ANSI codes first, then grep for height
-  LAST_HEIGHT=$($DC logs --tail=5 fedimintd 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -oE 'height=[0-9]+' | tail -1 | cut -d= -f2 || echo "0")
+  LAST_HEIGHT=$($DC logs --tail=3 fedimintd 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -oE 'height=[0-9]+' | tail -1 | cut -d= -f2 || echo "0")
   if [ -n "$LAST_HEIGHT" ] && [ "$LAST_HEIGHT" -ge "$((CHAIN_HEIGHT - 1))" ] 2>/dev/null; then
     echo "  Federation synced to height $LAST_HEIGHT (chain: $CHAIN_HEIGHT) in ${i}s."
+    # Mine one more block and wait for it to be processed
+    btc generatetoaddress 1 "$ADDR" > /dev/null
+    sleep 5
     break
   fi
-  if [ "$((i % 30))" -eq 0 ]; then
-    echo "  (${i}s — last height: $LAST_HEIGHT, chain: $CHAIN_HEIGHT)"
-    # Mine a block to nudge the federation consensus forward
+  # Mine a block every 10s to trigger new consensus sessions
+  if [ "$((i % 10))" -eq 0 ]; then
     btc generatetoaddress 1 "$ADDR" > /dev/null 2>&1
     CHAIN_HEIGHT=$(btc getblockcount)
   fi
+  [ "$((i % 30))" -eq 0 ] && echo "  (${i}s — last height: ${LAST_HEIGHT:-?}, chain: $CHAIN_HEIGHT)"
   sleep 1
 done
 
