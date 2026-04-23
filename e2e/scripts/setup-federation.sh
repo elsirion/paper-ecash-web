@@ -214,12 +214,22 @@ btc generatetoaddress 6 "$ADDR" > /dev/null
 echo "==> Waiting for gateway to fully initialize..."
 sleep 10
 
-# ── 9. Give the federation time to process all blocks
-# The initial setup mined ~224 blocks. The federation processes them
-# sequentially in session 1. Wait for it to finish before tests run.
-echo "==> Waiting for federation block sync (30s)..."
-sleep 30
-echo "  Federation should be synced."
+# ── 9. Wait for the federation to finish processing all blocks.
+# The wallet module processes ~224 blocks sequentially at ~1 block/sec.
+# Wait until fedimintd stops logging block processing.
+echo "==> Waiting for federation block sync..."
+CHAIN_HEIGHT=$(btc getblockcount)
+echo "  Chain height: $CHAIN_HEIGHT"
+for i in $(seq 1 120); do
+  # Check fedimintd logs for the last processed block height
+  LAST_HEIGHT=$($DC logs --tail=5 fedimintd 2>&1 | grep -oE 'height=[0-9]+' | tail -1 | cut -d= -f2 || echo "0")
+  if [ -n "$LAST_HEIGHT" ] && [ "$LAST_HEIGHT" -ge "$((CHAIN_HEIGHT - 1))" ] 2>/dev/null; then
+    echo "  Federation synced to height $LAST_HEIGHT (chain: $CHAIN_HEIGHT) in ${i}s."
+    break
+  fi
+  [ "$((i % 30))" -eq 0 ] && echo "  (${i}s — last height: $LAST_HEIGHT, chain: $CHAIN_HEIGHT)"
+  sleep 1
+done
 
 # ── 10. Write invite code for Playwright ─────────────────────
 mkdir -p "$E2E_DIR/.shared"
