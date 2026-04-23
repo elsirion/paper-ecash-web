@@ -28,8 +28,8 @@ gwcli() { $DC exec -T gatewayd gateway-cli --address http://127.0.0.1:8175 --rpc
 echo "==> Creating bitcoind wallet and mining initial blocks"
 btc_ createwallet "test" 2>/dev/null || btc_ loadwallet "test" 2>/dev/null || true
 ADDR=$(btc getnewaddress)
-btc generatetoaddress 200 "$ADDR" > /dev/null
-echo "  Mined 200 blocks."
+btc generatetoaddress 105 "$ADDR" > /dev/null
+echo "  Mined 105 blocks."
 
 # ── 2. Wait for LND nodes to sync ──────────────────────────────
 echo "==> Waiting for LND nodes to sync"
