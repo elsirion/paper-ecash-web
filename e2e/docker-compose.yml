@@ -129,7 +129,7 @@ services:
       - lnd-gateway-data:/lnd:ro
     # Generate bcrypt hash at runtime then start gatewayd
     environment:
-      RUST_LOG: info,fm::gw=debug
+      RUST_LOG: info,fm::gw=trace,fedimint_gw_client=trace,fedimint_ln_client=trace
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
