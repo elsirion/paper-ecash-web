@@ -228,7 +228,12 @@ for i in $(seq 1 300); do
     echo "  Federation synced to height $LAST_HEIGHT (chain: $CHAIN_HEIGHT) in ${i}s."
     break
   fi
-  [ "$((i % 30))" -eq 0 ] && echo "  (${i}s — last height: $LAST_HEIGHT, chain: $CHAIN_HEIGHT)"
+  if [ "$((i % 30))" -eq 0 ]; then
+    echo "  (${i}s — last height: $LAST_HEIGHT, chain: $CHAIN_HEIGHT)"
+    # Mine a block to nudge the federation consensus forward
+    btc generatetoaddress 1 "$ADDR" > /dev/null 2>&1
+    CHAIN_HEIGHT=$(btc getblockcount)
+  fi
   sleep 1
 done
 
