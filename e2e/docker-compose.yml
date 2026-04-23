@@ -97,6 +97,9 @@ services:
     ports: ["18174:18174"]
     volumes:
       - fm-data:/data
+    environment:
+      # Only use LNv1 module (not LNv2) to match the WASM client
+      FM_ENABLE_MODULE_LNV2: "false"
     command:
       - fedimintd
       - --data-dir=/data

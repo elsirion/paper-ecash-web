@@ -186,6 +186,15 @@ fi
 echo "==> Connecting gateway to federation"
 gwcli connect-fed "$INVITE_CODE" 2>&1 || true
 
+# Show which modules the federation has
+echo "  Federation modules:"
+$DC exec -T fedimintd sh -c 'cat /data/client.json' 2>/dev/null | python3 -c "
+import json,sys
+cfg=json.load(sys.stdin)
+for mid,m in cfg.get('modules',{}).items():
+    print(f'  Module {mid}: kind={m.get(\"kind\",\"?\")} version={m.get(\"version\",\"?\")}')
+" 2>&1 || true
+
 echo "==> Waiting for gateway to register"
 for i in $(seq 1 30); do
   GW_FEDS=$(gwcli info 2>&1 | grep -c '"federation' || true)
