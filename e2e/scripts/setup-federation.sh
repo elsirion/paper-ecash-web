@@ -214,23 +214,12 @@ btc generatetoaddress 6 "$ADDR" > /dev/null
 echo "==> Waiting for gateway to fully initialize..."
 sleep 10
 
-# ── 9. Wait for federation to finish syncing blocks
-echo "==> Waiting for federation to sync all blocks..."
-# The federation wallet module processes blocks sequentially. We need
-# to wait until it catches up to the current chain tip before tests
-# can use LN payments (which require processed consensus items).
-for i in $(seq 1 60); do
-  # Check if fedimintd has processed recent blocks by looking at session progress
-  FED_STATUS=$($DC exec -T -e FM_PASSWORD=testpass fedimintd \
-    fedimint-cli --data-dir /tmp/fm-client admin status 2>&1 || true)
-  if echo "$FED_STATUS" | grep -q "session_count.*[2-9]"; then
-    echo "  Federation caught up (attempt $i, status: ${FED_STATUS:0:60})"
-    break
-  fi
-  [ "$((i % 10))" -eq 0 ] && echo "  (attempt $i — status: ${FED_STATUS:0:80})"
-  sleep 2
-done
-echo "  Federation should be ready for LN payments."
+# ── 9. Give the federation time to process all blocks
+# The initial setup mined ~224 blocks. The federation processes them
+# sequentially in session 1. Wait for it to finish before tests run.
+echo "==> Waiting for federation block sync (30s)..."
+sleep 30
+echo "  Federation should be synced."
 
 # ── 10. Write invite code for Playwright ─────────────────────
 mkdir -p "$E2E_DIR/.shared"
