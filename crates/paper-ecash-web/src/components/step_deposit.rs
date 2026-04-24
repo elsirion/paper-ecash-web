@@ -49,7 +49,9 @@ pub fn StepDeposit(
                     None => {
                         let config = build_config();
                         let per_note: u64 = config.denominations_msat.iter().sum();
-                        let total = per_note * config.note_count as u64;
+                        // Over-charge to cover federation ecash fees
+                        let fee_buffer_msat = 50_000 + 2_000 * config.note_count as u64;
+                        let total = per_note * config.note_count as u64 + fee_buffer_msat;
 
                         // Generate 12-word BIP39 mnemonic
                         let mnemonic = fedimint_bip39::Mnemonic::generate_in_with(

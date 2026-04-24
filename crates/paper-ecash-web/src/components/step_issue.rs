@@ -119,27 +119,33 @@ pub fn StepIssue(
                             all_notes.push(note);
                         }
                         Err(e) => {
-                            // Save what we have so far to localStorage as a
-                            // cache. On next load, recover_issued_notes will
-                            // re-derive them from the oplog anyway, but this
-                            // makes the issuances list show partial progress.
-                            let mut partial = iss.clone();
-                            partial.ecash_notes = all_notes;
-                            storage::save_issuance(&partial);
-                            issuance.set(Some(partial));
-
+                            tracing::warn!("spend_exact failed at note {}/{count}: {e:#}", i + 1);
+                            // Likely ran out of balance due to federation fees.
+                            // Continue with the notes we already have.
+                            if all_notes.is_empty() {
+                                error.set(Some(format!(
+                                    "Failed to issue any notes: {e}"
+                                )));
+                                return;
+                            }
                             error.set(Some(format!(
-                                "Failed to issue note {} of {}: {e}",
-                                i + 1,
-                                count
+                                "Could only issue {} of {count} notes \
+                                 (likely due to federation fees eating into the balance). \
+                                 The remaining balance can be reclaimed on the download page.",
+                                all_notes.len(),
                             )));
-                            return;
+                            break;
                         }
                     }
                 }
 
-                progress.set(count);
-                status_msg.set(format!("All {} notes issued!", count));
+                let issued = all_notes.len() as u32;
+                progress.set(issued);
+                if issued == count {
+                    status_msg.set(format!("All {count} notes issued!"));
+                } else {
+                    status_msg.set(format!("{issued} of {count} notes issued."));
+                }
 
                 // Update issuance
                 let mut updated = iss.clone();
