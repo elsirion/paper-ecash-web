@@ -4649,6 +4649,7 @@ dependencies = [
  "fedimint-meta-client",
  "fedimint-meta-common",
  "fedimint-mint-client",
+ "fedimint-mint-common",
  "fedimint-wallet-client",
  "futures",
  "gloo-storage",

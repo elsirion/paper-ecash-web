@@ -65,6 +65,11 @@ impl WalletRuntime {
         self.worker.request(Command::GetGatewayFees).await
     }
 
+    /// Returns estimated ecash transaction fee budget in msat.
+    pub async fn get_ecash_fee_budget(&self) -> anyhow::Result<u64> {
+        self.worker.request(Command::GetEcashFeeBudget).await
+    }
+
     pub async fn create_invoice(
         &self,
         amount_msat: u64,
@@ -210,6 +215,13 @@ async fn handle_request(
         Command::GetGatewayFees => {
             with_runtime(&runtime, |wallet| async move {
                 wallet.get_gateway_fees().await
+            })
+            .await
+            .and_then(serialize_ok)
+        }
+        Command::GetEcashFeeBudget => {
+            with_runtime(&runtime, |wallet| async move {
+                wallet.get_ecash_fee_budget().await
             })
             .await
             .and_then(serialize_ok)
@@ -406,6 +418,7 @@ enum Command {
     },
     GetBalance,
     GetGatewayFees,
+    GetEcashFeeBudget,
     CreateInvoice {
         amount_msat: u64,
         description: String,

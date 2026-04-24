@@ -572,25 +572,34 @@ async fn do_withdraw(rt: &WalletRuntime, target: &str, balance_msat: u64) -> any
         );
     };
 
-    // Fetch gateway fees so we can calculate the max invoice amount that fits
-    // within the wallet balance. For internal payments (same federation) the
-    // gateway fee won't actually be charged, but we budget for it to be safe.
+    // Fetch gateway fees and ecash fee budget so we can calculate the max
+    // invoice amount that fits within the wallet balance.
     let (base_msat, prop_millionths) = rt
         .get_gateway_fees()
         .await
         .unwrap_or((0, 0));
+    let ecash_fee_budget = rt
+        .get_ecash_fee_budget()
+        .await
+        .unwrap_or(0);
 
-    // invoice_amount + base + invoice_amount * prop / 1_000_000 <= balance
-    // invoice_amount * (1_000_000 + prop) / 1_000_000 <= balance - base
-    let after_base = balance_msat.saturating_sub(u64::from(base_msat));
+    // Reserve ecash fees first, then solve for the gateway fee:
+    // fedimint computes gateway fee as: invoice / (1_000_000 / prop)
+    // so we match that two-step integer division.
+    let spendable = balance_msat
+        .saturating_sub(u64::from(base_msat))
+        .saturating_sub(ecash_fee_budget);
     let invoice_amount = if prop_millionths > 0 {
-        after_base * 1_000_000 / (1_000_000 + u64::from(prop_millionths))
+        let fee_divisor = 1_000_000u64 / u64::from(prop_millionths);
+        // invoice + invoice / fee_divisor <= spendable
+        // invoice * (fee_divisor + 1) / fee_divisor <= spendable
+        spendable * fee_divisor / (fee_divisor + 1)
     } else {
-        after_base
+        spendable
     };
 
     if invoice_amount == 0 {
-        anyhow::bail!("Balance too low to cover gateway fees");
+        anyhow::bail!("Balance too low to cover fees");
     }
 
     // Step 1: Fetch LNURL-pay metadata

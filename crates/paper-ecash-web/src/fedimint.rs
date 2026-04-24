@@ -12,6 +12,7 @@ use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::Database;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::secp256k1::PublicKey;
+use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::{Amount, TieredCounts, TieredMulti};
 use fedimint_cursed_redb::MemAndRedb;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
@@ -24,6 +25,9 @@ use fedimint_mint_client::{
     MintClientInit, MintClientModule, MintOperationMeta, MintOperationMetaVariant, OOBNotes,
     ReissueExternalNotesState, SpendExactState,
 };
+use fedimint_core::module::CommonModuleInit;
+use fedimint_mint_common::config::MintClientConfig;
+use fedimint_mint_common::MintCommonInit;
 use fedimint_wallet_client::WalletClientInit;
 use futures::StreamExt;
 use tracing::info;
@@ -91,6 +95,45 @@ impl WalletRuntimeCore {
             .await
             .and_then(|meta| meta.value);
         Ok(name.unwrap_or_else(|| "Unknown Federation".to_owned()))
+    }
+
+    /// Returns the estimated ecash transaction fee in msat for spending the
+    /// entire wallet balance.  The estimate is `note_count * per_note_fee * 1.2`
+    /// where per_note_fee comes from the federation's mint fee consensus.
+    /// Returns 0 when the federation charges no ecash fees.
+    pub async fn get_ecash_fee_budget(&self) -> anyhow::Result<u64> {
+        let client = self.ensure_client().await?;
+
+        // Get mint module instance id and its config
+        let mint_instance = client
+            .get_first_instance(&MintCommonInit::KIND)
+            .ok_or_else(|| anyhow::anyhow!("No mint module"))?;
+        let config = client.config().await;
+        let mint_cfg: &MintClientConfig = config.modules[&mint_instance].cast()?;
+        let fee_consensus = mint_cfg.fee_consensus;
+
+        // If zero fees, skip the note scan
+        let test_fee = fee_consensus.fee(Amount::from_msats(1_000_000));
+        if test_fee == Amount::ZERO {
+            return Ok(0);
+        }
+
+        // Count spendable notes and sum their per-note fees
+        let mint = client.get_first_module::<MintClientModule>()?.inner();
+        let mut dbtx = mint.client_ctx.module_db().begin_transaction_nc().await;
+        let notes = dbtx
+            .find_by_prefix(&fedimint_mint_client::client_db::NoteKeyPrefix)
+            .await
+            .collect::<Vec<_>>()
+            .await;
+
+        let total_fee_msat: u64 = notes
+            .iter()
+            .map(|(key, _)| fee_consensus.fee(key.amount).msats)
+            .sum();
+
+        // Budget 1.2x to cover change outputs and rounding
+        Ok(total_fee_msat * 6 / 5)
     }
 
     /// Returns `(base_msat, proportional_millionths)` for the gateway we'd use.
