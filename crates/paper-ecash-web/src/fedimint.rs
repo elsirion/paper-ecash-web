@@ -13,7 +13,7 @@ use fedimint_core::db::Database;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::secp256k1::PublicKey;
 use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
-use fedimint_core::{Amount, TieredCounts, TieredMulti};
+use fedimint_core::{Amount, TieredCounts};
 use fedimint_cursed_redb::MemAndRedb;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use fedimint_ln_client::{
