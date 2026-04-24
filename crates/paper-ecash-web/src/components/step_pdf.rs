@@ -394,11 +394,21 @@ pub fn StepPdf(
                         reclaim_status.set(Some(format!("Reclaiming note 1 of {total}\u{2026}")));
 
                         wasm_bindgen_futures::spawn_local(async move {
+                            // Expand comma-separated notes from the old
+                            // serialization format (pre-single-envelope fix)
+                            // into individual OOBNotes strings.
+                            let parts: Vec<String> = notes
+                                .iter()
+                                .flat_map(|s| s.split(',').map(|p| p.trim().to_string()))
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                            let parts_total = parts.len();
+
                             let mut reclaimed = 0usize;
                             let mut already_spent = 0usize;
-                            for (i, note_str) in notes.iter().enumerate() {
+                            for (i, note_str) in parts.iter().enumerate() {
                                 reclaim_status.set(Some(format!(
-                                    "Reclaiming note {} of {total}\u{2026}",
+                                    "Reclaiming note {} of {parts_total}\u{2026}",
                                     i + 1,
                                 )));
                                 match rt.reissue_notes(note_str).await {
@@ -416,15 +426,15 @@ pub fn StepPdf(
 
                             if already_spent == 0 {
                                 reclaim_status.set(Some(format!(
-                                    "All {total} notes reclaimed to wallet."
+                                    "All {parts_total} notes reclaimed to wallet."
                                 )));
                             } else if reclaimed == 0 {
                                 reclaim_status.set(Some(format!(
-                                    "No notes could be reclaimed \u{2014} all {total} had already been redeemed."
+                                    "No notes could be reclaimed \u{2014} all {parts_total} had already been redeemed."
                                 )));
                             } else {
                                 reclaim_status.set(Some(format!(
-                                    "{reclaimed} of {total} notes reclaimed. \
+                                    "{reclaimed} of {parts_total} notes reclaimed. \
                                      {already_spent} had already been redeemed."
                                 )));
                             }
