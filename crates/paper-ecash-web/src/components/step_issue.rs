@@ -77,24 +77,22 @@ pub fn StepIssue(
                     return;
                 }
 
-                // Wait for balance to be available
-                let remaining = count - already_minted;
-                status_msg.set("Checking balance...".into());
+                // Wait for some balance to be available. We check for the
+                // full amount at first, but after a few seconds we proceed
+                // with whatever is there (old issuances may have been
+                // under-funded due to federation fees).
                 let per_note_msat: u64 = denoms.iter().sum();
+                let remaining = count - already_minted;
                 let required = per_note_msat * remaining as u64;
-                let mut attempts = 0u32;
-                loop {
+                status_msg.set("Checking balance...".into());
+                for attempt in 0u32..3 {
                     match rt.get_balance().await {
                         Ok(balance) if balance >= required => break,
+                        Ok(balance) if balance >= per_note_msat || attempt == 2 => {
+                            // Have enough for at least one note, or timed out — proceed
+                            break;
+                        }
                         Ok(balance) => {
-                            if attempts >= 60 {
-                                error.set(Some(format!(
-                                    "Insufficient balance after waiting: have {} msat, need {} msat",
-                                    balance, required
-                                )));
-                                return;
-                            }
-                            attempts += 1;
                             status_msg.set(format!(
                                 "Waiting for balance... ({} / {} msat)",
                                 balance, required
