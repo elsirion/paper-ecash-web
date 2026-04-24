@@ -73,7 +73,8 @@ pub fn Wizard(
             let resume_step = match existing.status {
                 IssuanceStatus::AwaitingDeposit => WizardStep::Deposit,
                 IssuanceStatus::Funded => WizardStep::Issue,
-                IssuanceStatus::Issued | IssuanceStatus::Complete => WizardStep::Design,
+                IssuanceStatus::Issued => WizardStep::Design,
+                IssuanceStatus::Complete => WizardStep::Pdf,
             };
             step.set(resume_step);
             issuance.set(Some(existing));
@@ -230,6 +231,7 @@ pub fn Wizard(
                                 <StepPdf
                                     issuance=issuance
                                     designs=designs
+                                    wallet=wallet
                                     on_done=on_done.clone()
                                     on_back=move || step.set(WizardStep::Design)
                                 />

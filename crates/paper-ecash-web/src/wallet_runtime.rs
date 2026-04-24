@@ -60,6 +60,16 @@ impl WalletRuntime {
         self.worker.request(Command::GetBalance).await
     }
 
+    /// Returns `(base_msat, proportional_millionths)` for the gateway we'd use.
+    pub async fn get_gateway_fees(&self) -> anyhow::Result<(u32, u32)> {
+        self.worker.request(Command::GetGatewayFees).await
+    }
+
+    /// Returns estimated ecash transaction fee budget in msat.
+    pub async fn get_ecash_fee_budget(&self) -> anyhow::Result<u64> {
+        self.worker.request(Command::GetEcashFeeBudget).await
+    }
+
     pub async fn create_invoice(
         &self,
         amount_msat: u64,
@@ -99,6 +109,22 @@ impl WalletRuntime {
         self.worker
             .request(Command::SpendExact {
                 denominations_msat,
+            })
+            .await
+    }
+
+    pub async fn pay_bolt11(&self, invoice: &str) -> anyhow::Result<()> {
+        self.worker
+            .request(Command::PayBolt11 {
+                invoice: invoice.to_owned(),
+            })
+            .await
+    }
+
+    pub async fn reissue_notes(&self, notes: &str) -> anyhow::Result<()> {
+        self.worker
+            .request(Command::ReissueNotes {
+                notes: notes.to_owned(),
             })
             .await
     }
@@ -186,6 +212,20 @@ async fn handle_request(
             .await
             .and_then(serialize_ok)
         }
+        Command::GetGatewayFees => {
+            with_runtime(&runtime, |wallet| async move {
+                wallet.get_gateway_fees().await
+            })
+            .await
+            .and_then(serialize_ok)
+        }
+        Command::GetEcashFeeBudget => {
+            with_runtime(&runtime, |wallet| async move {
+                wallet.get_ecash_fee_budget().await
+            })
+            .await
+            .and_then(serialize_ok)
+        }
         Command::CreateInvoice {
             amount_msat,
             description,
@@ -211,6 +251,20 @@ async fn handle_request(
             })
             .await
             .and_then(serialize_ok)
+        }
+        Command::PayBolt11 { invoice } => {
+            with_runtime(&runtime, move |wallet| async move {
+                wallet.pay_bolt11(&invoice).await
+            })
+            .await
+            .and_then(|_| serialize_ok(()))
+        }
+        Command::ReissueNotes { notes } => {
+            with_runtime(&runtime, move |wallet| async move {
+                wallet.reissue_notes(&notes).await
+            })
+            .await
+            .and_then(|_| serialize_ok(()))
         }
         Command::FindLnReceive => {
             with_runtime(&runtime, |wallet| async move {
@@ -363,12 +417,20 @@ enum Command {
         invite_code: String,
     },
     GetBalance,
+    GetGatewayFees,
+    GetEcashFeeBudget,
     CreateInvoice {
         amount_msat: u64,
         description: String,
     },
     SpendExact {
         denominations_msat: Vec<u64>,
+    },
+    PayBolt11 {
+        invoice: String,
+    },
+    ReissueNotes {
+        notes: String,
     },
     FindLnReceive,
     WaitForReceive {

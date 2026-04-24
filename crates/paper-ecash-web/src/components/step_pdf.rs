@@ -6,17 +6,61 @@ use crate::models::{Issuance, IssuanceStatus};
 use crate::pdf;
 use crate::qr;
 use crate::storage;
+use crate::wallet_runtime::WalletRuntime;
 
 #[component]
 pub fn StepPdf(
     issuance: RwSignal<Option<Issuance>>,
     designs: RwSignal<Vec<Design>>,
+    wallet: RwSignal<Option<WalletRuntime>>,
     on_done: impl Fn() + Send + Sync + Clone + 'static,
     on_back: impl Fn() + Send + Sync + Clone + 'static,
 ) -> impl IntoView {
     let status_msg = RwSignal::new(String::from("Ready to generate PDF."));
     let error = RwSignal::new(Option::<String>::None);
     let generating = RwSignal::new(false);
+
+    // Reclaim state (step 1: reclaim notes back to wallet)
+    let reclaim_status = RwSignal::new(Option::<String>::None);
+    let reclaim_error = RwSignal::new(Option::<String>::None);
+    let reclaiming = RwSignal::new(false);
+
+    // Withdraw state (step 2: send wallet balance out via LN)
+    let balance_msat = RwSignal::new(Option::<u64>::None);
+    let withdraw_target = RwSignal::new(String::new());
+    let withdraw_status = RwSignal::new(Option::<String>::None);
+    let withdraw_error = RwSignal::new(Option::<String>::None);
+    let withdrawing = RwSignal::new(false);
+
+    // Connect wallet (if not already) and fetch balance on mount
+    {
+        let started = RwSignal::new(false);
+        Effect::new(move || {
+            if started.get_untracked() {
+                return;
+            }
+            started.set(true);
+            wasm_bindgen_futures::spawn_local(async move {
+                let Some(rt) = wallet.get_untracked() else {
+                    return;
+                };
+                // Ensure wallet is connected to this issuance's federation
+                if let Some(iss) = issuance.get_untracked() {
+                    if let Err(e) = rt
+                        .connect(&iss.id, &iss.mnemonic_words, &iss.config.federation_invite)
+                        .await
+                    {
+                        tracing::warn!("Failed to connect wallet: {e}");
+                        return;
+                    }
+                }
+                match rt.get_balance().await {
+                    Ok(bal) => balance_msat.set(Some(bal)),
+                    Err(e) => tracing::warn!("Failed to fetch balance: {e}"),
+                }
+            });
+        });
+    }
 
     let generate = move || {
         let Some(iss) = issuance.get_untracked() else {
@@ -300,6 +344,328 @@ pub fn StepPdf(
                     }}
                 </button>
             </div>
+
+            // ── Step 1: Reclaim notes back to wallet ──
+            <div class="mt-8 border border-red-300 dark:border-red-800 rounded-lg p-4 sm:p-6 bg-red-50/50 dark:bg-red-900/10">
+                <h3 class="text-base font-semibold text-red-800 dark:text-red-400 mb-1">"Reclaim Issued Notes"</h3>
+                <p class="text-sm text-red-700/70 dark:text-red-400/70 mb-4">
+                    "Reclaim all issued paper ecash notes back into the wallet. "
+                    <strong>"This invalidates every printed note."</strong>
+                </p>
+
+                {move || {
+                    reclaim_error
+                        .get()
+                        .map(|e| {
+                            view! {
+                                <div class="p-3 mb-4 text-sm text-red-800 rounded-lg bg-red-100 dark:bg-red-900/30 dark:text-red-400 border-l-4 border-red-500">{e}</div>
+                            }
+                        })
+                }}
+
+                {move || {
+                    reclaim_status
+                        .get()
+                        .map(|msg| {
+                            view! {
+                                <div class="p-3 mb-4 text-sm text-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400">{msg}</div>
+                            }
+                        })
+                }}
+
+                <button
+                    class="w-full sm:w-auto px-5 py-2.5 text-sm font-medium text-white bg-red-700 rounded-lg hover:bg-red-800 focus:ring-4 focus:ring-red-300 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    disabled=move || {
+                        reclaiming.get()
+                            || issuance.get().map_or(true, |iss| iss.ecash_notes.is_empty())
+                    }
+                    on:click=move |_| {
+                        let Some(iss) = issuance.get_untracked() else { return };
+                        if iss.ecash_notes.is_empty() { return; }
+                        let Some(rt) = wallet.get_untracked() else {
+                            reclaim_error.set(Some("Wallet not connected.".into()));
+                            return;
+                        };
+
+                        let notes = iss.ecash_notes.clone();
+                        let total = notes.len();
+                        reclaiming.set(true);
+                        reclaim_error.set(None);
+                        reclaim_status.set(Some(format!("Reclaiming note 1 of {total}\u{2026}")));
+
+                        wasm_bindgen_futures::spawn_local(async move {
+                            // Expand comma-separated notes from the old
+                            // serialization format (pre-single-envelope fix)
+                            // into individual OOBNotes strings.
+                            let parts: Vec<String> = notes
+                                .iter()
+                                .flat_map(|s| s.split(',').map(|p| p.trim().to_string()))
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                            let parts_total = parts.len();
+
+                            let mut reclaimed = 0usize;
+                            let mut already_spent = 0usize;
+                            for (i, note_str) in parts.iter().enumerate() {
+                                reclaim_status.set(Some(format!(
+                                    "Reclaiming note {} of {parts_total}\u{2026}",
+                                    i + 1,
+                                )));
+                                match rt.reissue_notes(note_str).await {
+                                    Ok(()) => reclaimed += 1,
+                                    Err(e) => {
+                                        tracing::warn!("Note {} already spent or failed: {e:#}", i + 1);
+                                        already_spent += 1;
+                                    }
+                                }
+                                // Refresh balance after each note so the user sees funds trickle in
+                                if let Ok(bal) = rt.get_balance().await {
+                                    balance_msat.set(Some(bal));
+                                }
+                            }
+
+                            if already_spent == 0 {
+                                reclaim_status.set(Some(format!(
+                                    "All {parts_total} notes reclaimed to wallet."
+                                )));
+                            } else if reclaimed == 0 {
+                                reclaim_status.set(Some(format!(
+                                    "No notes could be reclaimed \u{2014} all {parts_total} had already been redeemed."
+                                )));
+                            } else {
+                                reclaim_status.set(Some(format!(
+                                    "{reclaimed} of {parts_total} notes reclaimed. \
+                                     {already_spent} had already been redeemed."
+                                )));
+                            }
+                            reclaiming.set(false);
+                        });
+                    }
+                >
+                    {move || {
+                        if reclaiming.get() { "Reclaiming\u{2026}" } else { "Reclaim All Notes" }
+                    }}
+                </button>
+
+                <p class="mt-3 text-xs text-red-600/70 dark:text-red-400/50">
+                    "Once reclaimed, the paper notes become worthless. This cannot be undone."
+                </p>
+            </div>
+
+            // ── Step 2: Withdraw wallet balance via Lightning ──
+            <div class="mt-4 border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-6 bg-gray-50/50 dark:bg-gray-800/50">
+                <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-1">"Withdraw Balance"</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    "Send the wallet balance to a Lightning address or LNURL."
+                </p>
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-gray-500 dark:text-gray-400">"Wallet balance:"</span>
+                        <span class="font-medium text-gray-900 dark:text-white">
+                            {move || match balance_msat.get() {
+                                Some(0) => "0 sat (empty)".to_string(),
+                                Some(bal) => format!("{} sat", bal / 1000),
+                                None => "Loading\u{2026}".to_string(),
+                            }}
+                        </span>
+                    </div>
+                </div>
+
+                {move || {
+                    withdraw_error
+                        .get()
+                        .map(|e| {
+                            view! {
+                                <div class="p-3 mb-4 text-sm text-red-800 rounded-lg bg-red-100 dark:bg-red-900/30 dark:text-red-400 border-l-4 border-red-500">{e}</div>
+                            }
+                        })
+                }}
+
+                {move || {
+                    withdraw_status
+                        .get()
+                        .map(|msg| {
+                            view! {
+                                <div class="p-3 mb-4 text-sm text-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400">{msg}</div>
+                            }
+                        })
+                }}
+
+                <div class="mb-4">
+                    <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">"Lightning address or LNURL"</label>
+                    <input
+                        type="text"
+                        class="block w-full p-2.5 text-sm text-gray-900 bg-white rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                        placeholder="user@domain.com or lnurl1..."
+                        prop:value=move || withdraw_target.get()
+                        on:input=move |ev| {
+                            withdraw_target.set(event_target_value(&ev));
+                        }
+                    />
+                </div>
+
+                <button
+                    class="w-full sm:w-auto px-5 py-2.5 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    disabled=move || {
+                        withdrawing.get()
+                            || withdraw_target.get().trim().is_empty()
+                            || balance_msat.get().map_or(true, |b| b == 0)
+                    }
+                    on:click=move |_| {
+                        let target = withdraw_target.get_untracked().trim().to_string();
+                        if target.is_empty() { return; }
+                        let Some(bal) = balance_msat.get_untracked() else { return };
+                        if bal == 0 { return; }
+                        let Some(rt) = wallet.get_untracked() else {
+                            withdraw_error.set(Some("Wallet not connected.".into()));
+                            return;
+                        };
+
+                        withdrawing.set(true);
+                        withdraw_error.set(None);
+                        withdraw_status.set(Some("Resolving Lightning address\u{2026}".into()));
+
+                        wasm_bindgen_futures::spawn_local(async move {
+                            match do_withdraw(&rt, &target, bal).await {
+                                Ok(()) => {
+                                    withdraw_status.set(Some("Withdrawal complete!".into()));
+                                }
+                                Err(e) => {
+                                    withdraw_error.set(Some(format!("{e:#}")));
+                                    withdraw_status.set(None);
+                                }
+                            }
+                            // Refresh balance (may be non-zero after internal payment fee savings)
+                            if let Ok(bal) = rt.get_balance().await {
+                                balance_msat.set(Some(bal));
+                            }
+                            withdrawing.set(false);
+                        });
+                    }
+                >
+                    {move || {
+                        if withdrawing.get() { "Sending\u{2026}" } else { "Withdraw" }
+                    }}
+                </button>
+            </div>
         </div>
     }
+}
+
+/// Resolve a Lightning address or LNURL to a bolt11 invoice and pay it.
+async fn do_withdraw(rt: &WalletRuntime, target: &str, balance_msat: u64) -> anyhow::Result<()> {
+    let lnurl_endpoint = if target.contains('@') {
+        // Lightning address: user@domain → https://domain/.well-known/lnurlp/user
+        let parts: Vec<&str> = target.splitn(2, '@').collect();
+        if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
+            anyhow::bail!("Invalid Lightning address format. Expected user@domain");
+        }
+        let (user, domain) = (parts[0], parts[1]);
+        format!("https://{domain}/.well-known/lnurlp/{user}")
+    } else if target.to_lowercase().starts_with("lnurl1") {
+        // LNURL bech32
+        decode_lnurl(target)?
+    } else {
+        anyhow::bail!(
+            "Unsupported format. Enter a Lightning address (user@domain) or LNURL (lnurl1...)"
+        );
+    };
+
+    // Fetch gateway fees and ecash fee budget so we can calculate the max
+    // invoice amount that fits within the wallet balance.
+    let (base_msat, prop_millionths) = rt
+        .get_gateway_fees()
+        .await
+        .unwrap_or((0, 0));
+    let ecash_fee_budget = rt
+        .get_ecash_fee_budget()
+        .await
+        .unwrap_or(0);
+
+    // Reserve ecash fees first, then solve for the gateway fee:
+    // fedimint computes gateway fee as: invoice / (1_000_000 / prop)
+    // so we match that two-step integer division.
+    let spendable = balance_msat
+        .saturating_sub(u64::from(base_msat))
+        .saturating_sub(ecash_fee_budget);
+    let invoice_amount = if prop_millionths > 0 {
+        let fee_divisor = 1_000_000u64 / u64::from(prop_millionths);
+        // invoice + invoice / fee_divisor <= spendable
+        // invoice * (fee_divisor + 1) / fee_divisor <= spendable
+        spendable * fee_divisor / (fee_divisor + 1)
+    } else {
+        spendable
+    };
+
+    if invoice_amount == 0 {
+        anyhow::bail!("Balance too low to cover fees");
+    }
+
+    // Step 1: Fetch LNURL-pay metadata
+    let meta_json = browser::fetch_json(&lnurl_endpoint).await
+        .map_err(|e| anyhow::anyhow!("Failed to fetch LNURL endpoint: {e}"))?;
+    let meta: serde_json::Value = serde_json::from_str(&meta_json)
+        .map_err(|e| anyhow::anyhow!("Invalid LNURL response: {e}"))?;
+
+    let tag = meta.get("tag").and_then(|v| v.as_str()).unwrap_or("");
+    if tag != "payRequest" {
+        anyhow::bail!("LNURL endpoint is not a payRequest (got tag={tag:?})");
+    }
+
+    let callback = meta
+        .get("callback")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("LNURL response missing 'callback' field"))?;
+    let min_sendable = meta
+        .get("minSendable")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let max_sendable = meta
+        .get("maxSendable")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(u64::MAX);
+
+    if invoice_amount < min_sendable {
+        anyhow::bail!(
+            "Sendable amount after fees ({} msat) is below the minimum ({} msat)",
+            invoice_amount,
+            min_sendable,
+        );
+    }
+
+    // Clamp to maxSendable
+    let send_amount = invoice_amount.min(max_sendable);
+
+    // Step 2: Request invoice from callback
+    let separator = if callback.contains('?') { '&' } else { '?' };
+    let invoice_url = format!("{callback}{separator}amount={send_amount}");
+    let invoice_json = browser::fetch_json(&invoice_url).await
+        .map_err(|e| anyhow::anyhow!("Failed to fetch invoice: {e}"))?;
+    let invoice_resp: serde_json::Value = serde_json::from_str(&invoice_json)
+        .map_err(|e| anyhow::anyhow!("Invalid invoice response: {e}"))?;
+
+    if let Some(reason) = invoice_resp.get("reason").and_then(|v| v.as_str()) {
+        anyhow::bail!("LNURL error: {reason}");
+    }
+
+    let bolt11 = invoice_resp
+        .get("pr")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Invoice response missing 'pr' field"))?;
+
+    // Step 3: Pay the invoice
+    rt.pay_bolt11(bolt11).await
+}
+
+fn decode_lnurl(lnurl: &str) -> anyhow::Result<String> {
+    use bech32::Hrp;
+
+    let lnurl_lower = lnurl.to_lowercase();
+    let (hrp, data) = bech32::decode(&lnurl_lower)
+        .map_err(|e| anyhow::anyhow!("Invalid LNURL bech32: {e}"))?;
+    if hrp != Hrp::parse_unchecked("lnurl") {
+        anyhow::bail!("Invalid LNURL prefix: expected 'lnurl', got '{hrp}'");
+    }
+    String::from_utf8(data).map_err(|e| anyhow::anyhow!("LNURL decoded to invalid UTF-8: {e}"))
 }

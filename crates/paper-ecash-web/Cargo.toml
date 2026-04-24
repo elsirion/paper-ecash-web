@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 anyhow = "1.0"
+bech32 = "0.11"
 console_error_panic_hook = "0.1.7"
 futures = "0.3"
 gloo-storage = "0.3.0"
@@ -68,6 +69,7 @@ fedimint-ln-client = { git = "https://github.com/elsiribot/fedimint.git", branch
 fedimint-meta-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
 fedimint-meta-common = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
 fedimint-mint-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
+fedimint-mint-common = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
 fedimint-wallet-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-01-spend-exact-rebase" }
 
 [lints]

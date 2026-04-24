@@ -12,18 +12,22 @@ use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::Database;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::secp256k1::PublicKey;
-use fedimint_core::{Amount, TieredCounts, TieredMulti};
+use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
+use fedimint_core::{Amount, TieredCounts};
 use fedimint_cursed_redb::MemAndRedb;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use fedimint_ln_client::{
-    LightningClientInit, LightningClientModule, LightningOperationMeta,
-    LightningOperationMetaVariant, LnReceiveState,
+    InternalPayState, LightningClientInit, LightningClientModule, LightningOperationMeta,
+    LightningOperationMetaVariant, LnPayState, LnReceiveState, PayType,
 };
 use fedimint_meta_client::{MetaClientInit, MetaModuleMetaSourceWithFallback};
 use fedimint_mint_client::{
     MintClientInit, MintClientModule, MintOperationMeta, MintOperationMetaVariant, OOBNotes,
-    SpendExactState,
+    ReissueExternalNotesState, SpendExactState,
 };
+use fedimint_core::module::CommonModuleInit;
+use fedimint_mint_common::config::MintClientConfig;
+use fedimint_mint_common::MintCommonInit;
 use fedimint_wallet_client::WalletClientInit;
 use futures::StreamExt;
 use tracing::info;
@@ -93,6 +97,56 @@ impl WalletRuntimeCore {
         Ok(name.unwrap_or_else(|| "Unknown Federation".to_owned()))
     }
 
+    /// Returns the estimated ecash transaction fee in msat for spending the
+    /// entire wallet balance.  The estimate is `note_count * per_note_fee * 1.2`
+    /// where per_note_fee comes from the federation's mint fee consensus.
+    /// Returns 0 when the federation charges no ecash fees.
+    pub async fn get_ecash_fee_budget(&self) -> anyhow::Result<u64> {
+        let client = self.ensure_client().await?;
+
+        // Get mint module instance id and its config
+        let mint_instance = client
+            .get_first_instance(&MintCommonInit::KIND)
+            .ok_or_else(|| anyhow::anyhow!("No mint module"))?;
+        let config = client.config().await;
+        let mint_cfg: &MintClientConfig = config.modules[&mint_instance].cast()?;
+        let fee_consensus = mint_cfg.fee_consensus;
+
+        // If zero fees, skip the note scan
+        let test_fee = fee_consensus.fee(Amount::from_msats(1_000_000));
+        if test_fee == Amount::ZERO {
+            return Ok(0);
+        }
+
+        // Count spendable notes and sum their per-note fees
+        let mint = client.get_first_module::<MintClientModule>()?.inner();
+        let mut dbtx = mint.client_ctx.module_db().begin_transaction_nc().await;
+        let notes = dbtx
+            .find_by_prefix(&fedimint_mint_client::client_db::NoteKeyPrefix)
+            .await
+            .collect::<Vec<_>>()
+            .await;
+
+        let total_fee_msat: u64 = notes
+            .iter()
+            .map(|(key, _)| fee_consensus.fee(key.amount).msats)
+            .sum();
+
+        // Budget 1.2x to cover change outputs and rounding
+        Ok(total_fee_msat * 6 / 5)
+    }
+
+    /// Returns `(base_msat, proportional_millionths)` for the gateway we'd use.
+    pub async fn get_gateway_fees(&self) -> anyhow::Result<(u32, u32)> {
+        let client = self.ensure_client().await?;
+        let ln = client.get_first_module::<LightningClientModule>()?.inner();
+        let gateway = ln.get_gateway(None::<PublicKey>, false).await?;
+        match gateway {
+            Some(gw) => Ok((gw.fees.base_msat, gw.fees.proportional_millionths)),
+            None => Ok((0, 0)),
+        }
+    }
+
     pub async fn create_invoice(
         &self,
         amount_msat: u64,
@@ -114,6 +168,86 @@ impl WalletRuntimeCore {
             )
             .await?;
         Ok((operation_id.fmt_full().to_string(), invoice.to_string()))
+    }
+
+    pub async fn pay_bolt11(&self, invoice_str: &str) -> anyhow::Result<()> {
+        let client = self.ensure_client().await?;
+        let ln = client.get_first_module::<LightningClientModule>()?.inner();
+        let gateway = ln.get_gateway(None::<PublicKey>, false).await?;
+        let invoice = lightning_invoice::Bolt11Invoice::from_str(invoice_str)
+            .map_err(|e| anyhow::anyhow!("Invalid invoice: {e}"))?;
+
+        let payment = ln.pay_bolt11_invoice(gateway, invoice, ()).await?;
+        let operation_id = payment.payment_type.operation_id();
+
+        match payment.payment_type {
+            PayType::Internal(_) => {
+                let sub = ln.subscribe_internal_pay(operation_id).await?;
+                let mut stream = sub.into_stream();
+                while let Some(state) = stream.next().await {
+                    match state {
+                        InternalPayState::Preimage(_) => return Ok(()),
+                        InternalPayState::RefundSuccess { error, .. } => {
+                            anyhow::bail!("Internal payment refunded: {error:?}");
+                        }
+                        InternalPayState::RefundError { error_message, .. } => {
+                            anyhow::bail!("Internal payment refund error: {error_message}");
+                        }
+                        InternalPayState::FundingFailed { error } => {
+                            anyhow::bail!("Internal payment funding failed: {error:?}");
+                        }
+                        InternalPayState::UnexpectedError(e) => {
+                            anyhow::bail!("Internal payment error: {e}");
+                        }
+                        _ => {}
+                    }
+                }
+                anyhow::bail!("Internal payment stream ended without terminal state")
+            }
+            PayType::Lightning(_) => {
+                let sub = ln.subscribe_ln_pay(operation_id).await?;
+                let mut stream = sub.into_stream();
+                while let Some(state) = stream.next().await {
+                    match state {
+                        LnPayState::Success { .. } => return Ok(()),
+                        LnPayState::Refunded { gateway_error } => {
+                            anyhow::bail!("Payment refunded: {gateway_error:?}");
+                        }
+                        LnPayState::UnexpectedError { error_message } => {
+                            anyhow::bail!("Payment error: {error_message}");
+                        }
+                        _ => {}
+                    }
+                }
+                anyhow::bail!("Payment stream ended without terminal state")
+            }
+        }
+    }
+
+    pub async fn reissue_notes(&self, notes_str: &str) -> anyhow::Result<()> {
+        let client = self.ensure_client().await?;
+        let mint = client.get_first_module::<MintClientModule>()?.inner();
+
+        let oob_notes: OOBNotes = notes_str
+            .parse()
+            .map_err(|e| anyhow::anyhow!("Failed to parse OOBNotes: {e}"))?;
+
+        let operation_id = mint.reissue_external_notes(oob_notes, ()).await?;
+
+        let sub = mint
+            .subscribe_reissue_external_notes(operation_id)
+            .await?;
+        let mut stream = sub.into_stream();
+        while let Some(state) = stream.next().await {
+            match state {
+                ReissueExternalNotesState::Done => return Ok(()),
+                ReissueExternalNotesState::Failed(e) => {
+                    anyhow::bail!("Reissue failed: {e}");
+                }
+                _ => {}
+            }
+        }
+        anyhow::bail!("Reissue stream ended without terminal state")
     }
 
     pub async fn spend_exact(

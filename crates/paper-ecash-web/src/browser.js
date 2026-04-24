@@ -78,3 +78,11 @@ export async function fetchDesignImage(url) {
   const buf = await resp.arrayBuffer();
   return new Uint8Array(buf);
 }
+
+export async function fetchJson(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+  }
+  return await resp.text();
+}
