@@ -3,3 +3,10 @@
 *.swp
 *.swo
 .DS_Store
+.direnv
+
+# E2E test artifacts
+e2e/.shared/
+e2e/node_modules/
+e2e/playwright-report/
+e2e/test-results/
