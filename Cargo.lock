@@ -4635,6 +4635,7 @@ name = "paper-ecash-web"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bech32",
  "console_error_panic_hook",
  "fedimint-bip39",
  "fedimint-client",

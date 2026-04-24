@@ -25,6 +25,8 @@ extern "C" {
     #[wasm_bindgen(catch, js_name = fetchFontWoff2)]
     pub fn fetch_font_woff2_js(family: &str, weight: u16) -> Result<Promise, JsValue>;
 
+    #[wasm_bindgen(catch, js_name = fetchJson)]
+    pub fn fetch_json_js(url: &str) -> Result<Promise, JsValue>;
 }
 
 pub async fn open_wallet_handle(file_name: &str) -> anyhow::Result<FileSystemSyncAccessHandle> {
@@ -74,6 +76,16 @@ pub fn png_object_url(png: &[u8]) -> String {
         .ok()
         .and_then(|b| web_sys::Url::create_object_url_with_blob(&b).ok())
         .unwrap_or_default()
+}
+
+pub async fn fetch_json(url: &str) -> anyhow::Result<String> {
+    let promise = fetch_json_js(url).map_err(js_error)?;
+    let value = wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(js_error)?;
+    value
+        .as_string()
+        .ok_or_else(|| anyhow::anyhow!("Expected string from fetchJson"))
 }
 
 pub async fn fetch_image_bytes(url: &str) -> anyhow::Result<Vec<u8>> {
