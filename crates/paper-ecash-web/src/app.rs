@@ -205,6 +205,27 @@ pub fn App() -> impl IntoView {
                     }
                 }}
             </main>
+            <footer class="mt-12 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500 flex items-center justify-between">
+                <span>
+                    "Built from "
+                    <a
+                        href=format!("https://github.com/elsirion/paper-ecash-web/commit/{}", env!("GIT_COMMIT_HASH"))
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    >
+                        {env!("GIT_COMMIT_HASH")}
+                    </a>
+                </span>
+                <a
+                    href="https://github.com/elsirion/paper-ecash-web"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                    "GitHub"
+                </a>
+            </footer>
         </div>
     }
 }
