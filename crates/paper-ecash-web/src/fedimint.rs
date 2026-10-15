@@ -34,6 +34,8 @@ use tracing::info;
 
 use crate::browser;
 
+mod v2;
+
 #[derive(Clone)]
 pub(crate) struct WalletRuntimeCore {
     database: Database,
@@ -103,6 +105,9 @@ impl WalletRuntimeCore {
     /// Returns 0 when the federation charges no ecash fees.
     pub async fn get_ecash_fee_budget(&self) -> anyhow::Result<u64> {
         let client = self.ensure_client().await?;
+        if v2::uses_mintv2(&client) {
+            return v2::ecash_fee_budget(&client).await;
+        }
 
         // Get mint module instance id and its config
         let mint_instance = client
@@ -139,6 +144,9 @@ impl WalletRuntimeCore {
     /// Returns `(base_msat, proportional_millionths)` for the gateway we'd use.
     pub async fn get_gateway_fees(&self) -> anyhow::Result<(u32, u32)> {
         let client = self.ensure_client().await?;
+        if v2::uses_lnv2(&client) {
+            return v2::gateway_fees(&client).await;
+        }
         let ln = client.get_first_module::<LightningClientModule>()?.inner();
         let gateway = ln.get_gateway(None::<PublicKey>, false).await?;
         match gateway {
@@ -153,6 +161,9 @@ impl WalletRuntimeCore {
         description: &str,
     ) -> anyhow::Result<(String, String)> {
         let client = self.ensure_client().await?;
+        if v2::uses_lnv2(&client) {
+            return v2::create_invoice(&client, amount_msat, description).await;
+        }
         let ln = client.get_first_module::<LightningClientModule>()?.inner();
         let gateway = ln.get_gateway(None::<PublicKey>, false).await?;
         let amount = Amount::from_msats(amount_msat);
@@ -172,6 +183,9 @@ impl WalletRuntimeCore {
 
     pub async fn pay_bolt11(&self, invoice_str: &str) -> anyhow::Result<()> {
         let client = self.ensure_client().await?;
+        if v2::uses_lnv2(&client) {
+            return v2::pay_bolt11(&client, invoice_str).await;
+        }
         let ln = client.get_first_module::<LightningClientModule>()?.inner();
         let gateway = ln.get_gateway(None::<PublicKey>, false).await?;
         let invoice = lightning_invoice::Bolt11Invoice::from_str(invoice_str)
@@ -226,6 +240,9 @@ impl WalletRuntimeCore {
 
     pub async fn reissue_notes(&self, notes_str: &str) -> anyhow::Result<()> {
         let client = self.ensure_client().await?;
+        if v2::uses_mintv2(&client) {
+            return v2::reissue_notes(&client, notes_str).await;
+        }
         let mint = client.get_first_module::<MintClientModule>()?.inner();
 
         let oob_notes: OOBNotes = notes_str
@@ -255,6 +272,9 @@ impl WalletRuntimeCore {
         denominations_msat: &[u64],
     ) -> anyhow::Result<String> {
         let client = self.ensure_client().await?;
+        if v2::uses_mintv2(&client) {
+            return v2::spend_exact(&client, denominations_msat).await;
+        }
         let mint = client.get_first_module::<MintClientModule>()?.inner();
 
         // Build TieredCounts from the denomination list
@@ -297,6 +317,9 @@ impl WalletRuntimeCore {
     /// Returns `(operation_id, invoice_string)` if one exists.
     pub async fn find_ln_receive(&self) -> anyhow::Result<Option<(String, String)>> {
         let client = self.ensure_client().await?;
+        if v2::uses_lnv2(&client) {
+            return v2::find_ln_receive(&client).await;
+        }
         let ops = client.operation_log().paginate_operations_rev(100, None).await;
 
         for (key, entry) in &ops {
@@ -319,6 +342,9 @@ impl WalletRuntimeCore {
     /// Claimed or Canceled. Returns Ok(()) on success, Err on cancel/failure.
     pub async fn wait_for_receive(&self, operation_id_str: &str) -> anyhow::Result<()> {
         let client = self.ensure_client().await?;
+        if v2::uses_lnv2(&client) {
+            return v2::wait_for_receive(&client, operation_id_str).await;
+        }
         let op_id = parse_operation_id(operation_id_str)?;
         let ln = client.get_first_module::<LightningClientModule>()?.inner();
         let sub = ln.subscribe_ln_receive(op_id).await?;
@@ -339,6 +365,9 @@ impl WalletRuntimeCore {
     /// recover the OOB note strings from each.
     pub async fn recover_issued_notes(&self) -> anyhow::Result<Vec<String>> {
         let client = self.ensure_client().await?;
+        if v2::uses_mintv2(&client) {
+            return v2::recover_issued_notes(&client).await;
+        }
         let ops = client.operation_log().paginate_operations_rev(10000, None).await;
         let mint = client.get_first_module::<MintClientModule>()?.inner();
 
@@ -411,7 +440,9 @@ impl WalletRuntimeCore {
     async fn client_builder() -> anyhow::Result<fedimint_client::ClientBuilder> {
         let mut builder = Client::builder().await?;
         builder.with_module(MintClientInit);
+        builder.with_module(fedimint_mintv2_client::MintClientInit);
         builder.with_module(LightningClientInit::default());
+        builder.with_module(fedimint_lnv2_client::LightningClientInit::default());
         builder.with_module(WalletClientInit(None));
         builder.with_module(MetaClientInit);
         let meta_source: MetaModuleMetaSourceWithFallback = Default::default();

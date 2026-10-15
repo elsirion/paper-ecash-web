@@ -66,10 +66,14 @@ fedimint-cursed-redb = { git = "https://github.com/elsiribot/fedimint.git", bran
 fedimint-derive-secret = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
 fedimint-eventlog = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
 fedimint-ln-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
+fedimint-lnv2-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
+fedimint-lnv2-common = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
 fedimint-meta-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
 fedimint-meta-common = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
 fedimint-mint-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
 fedimint-mint-common = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
+fedimint-mintv2-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
+fedimint-mintv2-common = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
 fedimint-wallet-client = { git = "https://github.com/elsiribot/fedimint.git", branch = "2026-10-spend-exact-v0.12.2" }
 
 [lints]
