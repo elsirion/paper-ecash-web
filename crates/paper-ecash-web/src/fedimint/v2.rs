@@ -17,7 +17,7 @@ use fedimint_lnv2_common::gateway_api::PaymentFee;
 use fedimint_lnv2_common::{Bolt11InvoiceDescription, LightningCommonInit, LightningInvoice};
 use fedimint_mintv2_client::{ECash, MintClientModule, MintOperationMeta};
 use fedimint_mintv2_common::config::MintClientConfig;
-use fedimint_mintv2_common::MintCommonInit;
+use fedimint_mintv2_common::{Denomination, MintCommonInit};
 use serde_json::Value;
 
 use super::parse_operation_id;
@@ -161,19 +161,23 @@ pub(super) async fn reissue_notes(client: &ClientHandle, notes_str: &str) -> any
     }
 }
 
-/// The v2 mint has no exact-denomination spend, but `send` returns notes for
-/// exactly the requested amount (reissuing first if needed). The printed value
-/// is the same as with v1, only the note split may differ.
 pub(super) async fn spend_exact(
     client: &ClientHandle,
     denominations_msat: &[u64],
 ) -> anyhow::Result<String> {
     let mint = client.get_first_module::<MintClientModule>()?.inner();
-    let amount = Amount::from_msats(denominations_msat.iter().sum());
 
-    // The denominations are powers of two >= 1024 msat, so `send` never has to
-    // round up to its 512 msat minimum denomination
-    let (_, ecash) = mint.send(amount, Value::Null, true).await?;
+    let denominations = denominations_msat
+        .iter()
+        .map(|&msat| {
+            anyhow::ensure!(msat.is_power_of_two(), "Invalid denomination: {msat} msat");
+            Ok(Denomination(msat.trailing_zeros() as u8))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    let (_, ecash) = mint
+        .send_denominations(denominations, Value::Null, true)
+        .await?;
 
     Ok(base32::encode_prefixed(FEDIMINT_PREFIX, &ecash))
 }
