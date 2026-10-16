@@ -7,7 +7,23 @@ use crate::models::QrErrorCorrection;
 /// typical size of an ecash note so preview density reflects the real output.
 pub const SAMPLE_QR_DATA: &str = "fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6ct5d9hxgmmjv9kx7pqdq4ux6t5vdhk6m0d4hjqfurvx6z5rn8s28fc2fnd40krnh34t3scp7lypl5y6r7x6qlzcgpaq3aq8vqdmqmv2c3tkjqp50phwtsyvfwn5ylh9uz26a9tjnr0abcdefghijklmnopqrstuvwx";
 
-/// Generate a QR code as PNG bytes with transparent background.
+/// Prefix of base32-encoded fedimint strings such as mintv2 ecash.
+const FEDIMINT_BASE32_PREFIX: &str = "fedimint";
+
+/// The QR payload for an ecash note string.
+///
+/// mintv2 ecash is lowercase base32, which forces QR byte mode (8 bits per
+/// char). Fedimint decodes it case-insensitively, so uppercasing it allows the
+/// denser alphanumeric mode (5.5 bits per char), shrinking a single-note QR
+/// from version 18 to 14. v1 notes are base64, which is case-sensitive.
+pub fn ecash_qr_payload(note: &str) -> String {
+    if note.starts_with(FEDIMINT_BASE32_PREFIX) {
+        note.to_uppercase()
+    } else {
+        note.to_owned()
+    }
+}
+
 /// Generate a QR code as PNG bytes with transparent background (for PDF overlay).
 pub fn generate_qr_png(
     data: &str,
@@ -103,4 +119,44 @@ pub fn overlay_icon(qr_png: &[u8], icon_png: &[u8], icon_size_percent: u32) -> a
     )?;
 
     Ok(png_bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mintv2_ecash_is_uppercased_for_a_smaller_qr() {
+        // Shaped like a single-note mintv2 ecash string with invite: 375 chars of
+        // lowercase base32hex after the prefix
+        let base32hex = b"0123456789abcdefghijklmnopqrstuv";
+        let mut seed = 42u32;
+        let note: String = FEDIMINT_BASE32_PREFIX
+            .chars()
+            .chain((0..367).map(|_| {
+                seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+                char::from(base32hex[(seed >> 16) as usize % base32hex.len()])
+            }))
+            .collect();
+
+        let version = |data: &str| {
+            let code = QrCode::with_error_correction_level(data, qrcode::EcLevel::Q)
+                .expect("fits in a QR code");
+            match code.version() {
+                qrcode::Version::Normal(v) => v,
+                qrcode::Version::Micro(_) => unreachable!("not a micro QR"),
+            }
+        };
+
+        let payload = ecash_qr_payload(&note);
+        assert_eq!(payload, note.to_uppercase());
+        assert_eq!(version(&note), 18);
+        assert!(version(&payload) <= 14);
+    }
+
+    #[test]
+    fn base64_notes_are_left_unchanged() {
+        let v1_note = "AQAAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAE_aBc-xYz";
+        assert_eq!(ecash_qr_payload(v1_note), v1_note);
+    }
 }

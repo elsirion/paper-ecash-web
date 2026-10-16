@@ -129,7 +129,7 @@ pub fn StepPdf(
                 ));
 
                 let qr_png = match qr::generate_qr_png(
-                    note_str,
+                    &qr::ecash_qr_payload(note_str),
                     iss.config.qr_error_correction,
                     10,
                 ) {
