@@ -1906,7 +1906,7 @@ dependencies = [
 [[package]]
 name = "fedimint-aead"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "argon2",
@@ -1918,7 +1918,7 @@ dependencies = [
 [[package]]
 name = "fedimint-api-client"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -1944,7 +1944,7 @@ dependencies = [
 [[package]]
 name = "fedimint-bip39"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "bip39",
  "fedimint-client",
@@ -1956,7 +1956,7 @@ dependencies = [
 [[package]]
 name = "fedimint-bitcoind"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1971,7 +1971,7 @@ dependencies = [
 [[package]]
 name = "fedimint-build"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "serde_json",
 ]
@@ -1979,7 +1979,7 @@ dependencies = [
 [[package]]
 name = "fedimint-client"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2012,7 +2012,7 @@ dependencies = [
 [[package]]
 name = "fedimint-client-module"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2044,7 +2044,7 @@ dependencies = [
 [[package]]
 name = "fedimint-connectors"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2076,7 +2076,7 @@ dependencies = [
 [[package]]
 name = "fedimint-core"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -2140,7 +2140,7 @@ dependencies = [
 [[package]]
 name = "fedimint-cursed-redb"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2159,7 +2159,7 @@ dependencies = [
 [[package]]
 name = "fedimint-db-locked"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2172,7 +2172,7 @@ dependencies = [
 [[package]]
 name = "fedimint-derive"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "itertools 0.14.0",
  "proc-macro2",
@@ -2183,7 +2183,7 @@ dependencies = [
 [[package]]
 name = "fedimint-derive-secret"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "bitcoin_hashes",
@@ -2196,7 +2196,7 @@ dependencies = [
 [[package]]
 name = "fedimint-eventlog"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2214,7 +2214,7 @@ dependencies = [
 [[package]]
 name = "fedimint-hkdf"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "bitcoin_hashes",
 ]
@@ -2222,7 +2222,7 @@ dependencies = [
 [[package]]
 name = "fedimint-ln-client"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2256,7 +2256,7 @@ dependencies = [
 [[package]]
 name = "fedimint-ln-common"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2280,7 +2280,7 @@ dependencies = [
 [[package]]
 name = "fedimint-lnurl"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "bech32",
  "lightning-invoice",
@@ -2292,7 +2292,7 @@ dependencies = [
 [[package]]
 name = "fedimint-lnv2-client"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2324,7 +2324,7 @@ dependencies = [
 [[package]]
 name = "fedimint-lnv2-common"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2345,7 +2345,7 @@ dependencies = [
 [[package]]
 name = "fedimint-logging"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "tracing-subscriber",
@@ -2354,7 +2354,7 @@ dependencies = [
 [[package]]
 name = "fedimint-meta-client"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2376,7 +2376,7 @@ dependencies = [
 [[package]]
 name = "fedimint-meta-common"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "fedimint-core",
@@ -2391,7 +2391,7 @@ dependencies = [
 [[package]]
 name = "fedimint-metrics"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "axum",
@@ -2404,7 +2404,7 @@ dependencies = [
 [[package]]
 name = "fedimint-mint-client"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2444,7 +2444,7 @@ dependencies = [
 [[package]]
 name = "fedimint-mint-common"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "bitcoin_hashes",
@@ -2458,7 +2458,7 @@ dependencies = [
 [[package]]
 name = "fedimint-mintv2-client"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2496,7 +2496,7 @@ dependencies = [
 [[package]]
 name = "fedimint-mintv2-common"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "bitcoin_hashes",
@@ -2510,7 +2510,7 @@ dependencies = [
 [[package]]
 name = "fedimint-tbs"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "bls12_381",
  "fedimint-core",
@@ -2547,7 +2547,7 @@ dependencies = [
 [[package]]
 name = "fedimint-tpe"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "bitcoin_hashes",
  "bls12_381",
@@ -2562,7 +2562,7 @@ dependencies = [
 [[package]]
 name = "fedimint-util-error"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
 ]
@@ -2570,7 +2570,7 @@ dependencies = [
 [[package]]
 name = "fedimint-wallet-client"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2601,7 +2601,7 @@ dependencies = [
 [[package]]
 name = "fedimint-wallet-common"
 version = "0.12.2"
-source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#0499490a438062ea00289bb22275f001d1d00001"
+source = "git+https://github.com/elsiribot/fedimint.git?branch=2026-10-spend-exact-v0.12.2#4a000f52e3a00e730a6ca1eadd0948938d337c36"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -7862,7 +7862,7 @@ version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1c97747dbf44bb1ca44a561ece23508e99cb592e862f22222dcf42f51d1e451"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
