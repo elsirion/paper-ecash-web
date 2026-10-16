@@ -178,6 +178,10 @@ async fn handle_request(
     runtime: Rc<RefCell<Option<(String, WalletRuntimeCore)>>>,
     request: RequestEnvelope,
 ) -> ResponseEnvelope {
+    let command = request.command.name();
+    let started_ms = js_sys::Date::now();
+    tracing::debug!(id = request.id, command, "Worker request started");
+
     let result = match request.command {
         Command::Connect {
             issuance_id,
@@ -292,6 +296,12 @@ async fn handle_request(
             .and_then(serialize_ok)
         }
     };
+
+    let elapsed_ms = js_sys::Date::now() - started_ms;
+    match &result {
+        Ok(_) => tracing::debug!(id = request.id, command, elapsed_ms, "Worker request finished"),
+        Err(err) => tracing::warn!(id = request.id, command, elapsed_ms, "Worker request failed: {err:#}"),
+    }
 
     ResponseEnvelope {
         id: request.id,
@@ -437,6 +447,25 @@ enum Command {
         operation_id: String,
     },
     RecoverIssuedNotes,
+}
+
+impl Command {
+    /// Name for logging; the payloads may contain secrets like the mnemonic
+    fn name(&self) -> &'static str {
+        match self {
+            Command::Connect { .. } => "connect",
+            Command::GetBalance => "get_balance",
+            Command::GetGatewayFees => "get_gateway_fees",
+            Command::GetEcashFeeBudget => "get_ecash_fee_budget",
+            Command::CreateInvoice { .. } => "create_invoice",
+            Command::SpendExact { .. } => "spend_exact",
+            Command::PayBolt11 { .. } => "pay_bolt11",
+            Command::ReissueNotes { .. } => "reissue_notes",
+            Command::FindLnReceive => "find_ln_receive",
+            Command::WaitForReceive { .. } => "wait_for_receive",
+            Command::RecoverIssuedNotes => "recover_issued_notes",
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

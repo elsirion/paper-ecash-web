@@ -9,8 +9,7 @@ use fedimint_core::base32::{self, FEDIMINT_PREFIX};
 use fedimint_core::module::{AmountUnit, CommonModuleInit};
 use fedimint_core::Amount;
 use fedimint_lnv2_client::{
-    FinalReceiveOperationState, FinalSendOperationState, LightningClientModule,
-    LightningOperationMeta,
+    FinalReceiveOperationState, LightningClientModule, LightningOperationMeta, SendOperationState,
 };
 use fedimint_lnv2_common::config::LightningClientConfig;
 use fedimint_lnv2_common::gateway_api::PaymentFee;
@@ -18,7 +17,9 @@ use fedimint_lnv2_common::{Bolt11InvoiceDescription, LightningCommonInit, Lightn
 use fedimint_mintv2_client::{ECash, MintClientModule, MintOperationMeta};
 use fedimint_mintv2_common::config::MintClientConfig;
 use fedimint_mintv2_common::{Denomination, MintCommonInit};
+use futures::StreamExt;
 use serde_json::Value;
+use tracing::info;
 
 use super::parse_operation_id;
 
@@ -133,13 +134,29 @@ pub(super) async fn pay_bolt11(client: &ClientHandle, invoice_str: &str) -> anyh
     let invoice = lightning_invoice::Bolt11Invoice::from_str(invoice_str)
         .map_err(|e| anyhow::anyhow!("Invalid invoice: {e}"))?;
 
-    let operation_id = ln.send(invoice, None, Value::Null).await?;
+    info!(amount_msat = ?invoice.amount_milli_satoshis(), "Paying invoice via LNv2");
 
-    match ln.await_final_send_operation_state(operation_id).await? {
-        FinalSendOperationState::Success(_) => Ok(()),
-        FinalSendOperationState::Refunded => anyhow::bail!("Payment refunded"),
-        FinalSendOperationState::Failure => anyhow::bail!("Payment failed"),
+    let operation_id = ln.send(invoice, None, Value::Null).await?;
+    info!(operation_id = %operation_id.fmt_full(), "LNv2 payment submitted");
+
+    let mut updates = ln
+        .subscribe_send_operation_state_updates(operation_id)
+        .await?
+        .into_stream();
+    while let Some(state) = updates.next().await {
+        // Funded means we are waiting for the gateway to pay, which it retries
+        // until the contract expires
+        info!(operation_id = %operation_id.fmt_full(), ?state, "LNv2 payment state");
+        match state {
+            SendOperationState::Success(_) => return Ok(()),
+            SendOperationState::Refunded => anyhow::bail!("Payment refunded"),
+            SendOperationState::Failure => anyhow::bail!("Payment failed"),
+            SendOperationState::Funding
+            | SendOperationState::Funded
+            | SendOperationState::Refunding => {}
+        }
     }
+    anyhow::bail!("LNv2 payment stream ended without terminal state")
 }
 
 pub(super) async fn reissue_notes(client: &ClientHandle, notes_str: &str) -> anyhow::Result<()> {
