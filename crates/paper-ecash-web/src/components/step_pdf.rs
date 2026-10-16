@@ -129,7 +129,7 @@ pub fn StepPdf(
                 ));
 
                 let qr_png = match qr::generate_qr_png(
-                    note_str,
+                    &qr::ecash_qr_payload(note_str),
                     iss.config.qr_error_correction,
                     10,
                 ) {
@@ -527,7 +527,7 @@ pub fn StepPdf(
                         withdraw_status.set(Some("Resolving Lightning address\u{2026}".into()));
 
                         wasm_bindgen_futures::spawn_local(async move {
-                            match do_withdraw(&rt, &target, bal).await {
+                            match do_withdraw(&rt, &target, bal, withdraw_status).await {
                                 Ok(()) => {
                                     withdraw_status.set(Some("Withdrawal complete!".into()));
                                 }
@@ -554,7 +554,12 @@ pub fn StepPdf(
 }
 
 /// Resolve a Lightning address or LNURL to a bolt11 invoice and pay it.
-async fn do_withdraw(rt: &WalletRuntime, target: &str, balance_msat: u64) -> anyhow::Result<()> {
+async fn do_withdraw(
+    rt: &WalletRuntime,
+    target: &str,
+    balance_msat: u64,
+    status: RwSignal<Option<String>>,
+) -> anyhow::Result<()> {
     let lnurl_endpoint = if target.contains('@') {
         // Lightning address: user@domain → https://domain/.well-known/lnurlp/user
         let parts: Vec<&str> = target.splitn(2, '@').collect();
@@ -601,6 +606,14 @@ async fn do_withdraw(rt: &WalletRuntime, target: &str, balance_msat: u64) -> any
     if invoice_amount == 0 {
         anyhow::bail!("Balance too low to cover fees");
     }
+    tracing::info!(
+        balance_msat,
+        base_msat,
+        prop_millionths,
+        ecash_fee_budget,
+        invoice_amount,
+        "Computed withdraw amount"
+    );
 
     // Step 1: Fetch LNURL-pay metadata
     let meta_json = browser::fetch_json(&lnurl_endpoint).await
@@ -638,6 +651,8 @@ async fn do_withdraw(rt: &WalletRuntime, target: &str, balance_msat: u64) -> any
     let send_amount = invoice_amount.min(max_sendable);
 
     // Step 2: Request invoice from callback
+    status.set(Some(format!("Requesting invoice for {} sats\u{2026}", send_amount / 1000)));
+    tracing::info!(send_amount, "Requesting invoice from LNURL callback");
     let separator = if callback.contains('?') { '&' } else { '?' };
     let invoice_url = format!("{callback}{separator}amount={send_amount}");
     let invoice_json = browser::fetch_json(&invoice_url).await
@@ -655,6 +670,8 @@ async fn do_withdraw(rt: &WalletRuntime, target: &str, balance_msat: u64) -> any
         .ok_or_else(|| anyhow::anyhow!("Invoice response missing 'pr' field"))?;
 
     // Step 3: Pay the invoice
+    status.set(Some("Paying invoice, waiting for the gateway\u{2026}".into()));
+    tracing::info!(bolt11, "Paying withdraw invoice");
     rt.pay_bolt11(bolt11).await
 }
 

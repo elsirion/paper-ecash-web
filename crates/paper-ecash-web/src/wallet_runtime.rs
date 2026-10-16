@@ -138,6 +138,22 @@ pub fn run_worker_entrypoint() -> bool {
     }
 
     let scope: DedicatedWorkerGlobalScope = js_sys::global().unchecked_into();
+
+    // A panic aborts the worker's wasm instance, so no response would ever be
+    // sent; tell the main thread instead of leaving its requests hanging
+    std::panic::set_hook(Box::new({
+        let scope = scope.clone();
+        move |info| {
+            console_error_panic_hook::hook(info);
+            let _ = post_message(
+                &scope,
+                &WorkerCrash {
+                    crashed: info.to_string(),
+                },
+            );
+        }
+    }));
+
     let runtime = Rc::new(RefCell::new(None::<(String, WalletRuntimeCore)>));
     let on_message = Closure::wrap(Box::new({
         let runtime = Rc::clone(&runtime);
@@ -178,6 +194,10 @@ async fn handle_request(
     runtime: Rc<RefCell<Option<(String, WalletRuntimeCore)>>>,
     request: RequestEnvelope,
 ) -> ResponseEnvelope {
+    let command = request.command.name();
+    let started_ms = js_sys::Date::now();
+    tracing::debug!(id = request.id, command, "Worker request started");
+
     let result = match request.command {
         Command::Connect {
             issuance_id,
@@ -293,6 +313,12 @@ async fn handle_request(
         }
     };
 
+    let elapsed_ms = js_sys::Date::now() - started_ms;
+    match &result {
+        Ok(_) => tracing::debug!(id = request.id, command, elapsed_ms, "Worker request finished"),
+        Err(err) => tracing::warn!(id = request.id, command, elapsed_ms, "Worker request failed: {err:#}"),
+    }
+
     ResponseEnvelope {
         id: request.id,
         payload: match result {
@@ -347,14 +373,18 @@ struct WorkerClientInner {
     worker: Worker,
     next_id: Cell<u64>,
     pending: Rc<RefCell<HashMap<u64, ResponseSender>>>,
+    /// Panic message once the worker crashed; it cannot answer requests anymore
+    crashed: Rc<RefCell<Option<String>>>,
     _on_message: Closure<dyn FnMut(MessageEvent)>,
 }
 
 impl WorkerClient {
     fn new(worker: Worker) -> Self {
         let pending = Rc::new(RefCell::new(HashMap::<u64, ResponseSender>::new()));
+        let crashed = Rc::new(RefCell::new(None::<String>));
         let on_message = Closure::wrap(Box::new({
             let pending = Rc::clone(&pending);
+            let crashed = Rc::clone(&crashed);
             move |event: MessageEvent| {
                 let Some(raw) = event.data().as_string() else {
                     return;
@@ -368,6 +398,12 @@ impl WorkerClient {
                     if let Some(sender) = pending.borrow_mut().remove(&envelope.id) {
                         let _ = sender.send(result);
                     }
+                } else if let Ok(crash) = serde_json::from_str::<WorkerCrash>(&raw) {
+                    tracing::error!("Wallet worker crashed: {}", crash.crashed);
+                    for (_, sender) in pending.borrow_mut().drain() {
+                        let _ = sender.send(Err(worker_crashed_error(&crash.crashed)));
+                    }
+                    crashed.replace(Some(crash.crashed));
                 }
             }
         }) as Box<dyn FnMut(MessageEvent)>);
@@ -377,6 +413,7 @@ impl WorkerClient {
             worker,
             next_id: Cell::new(1),
             pending,
+            crashed,
             _on_message: on_message,
         };
         Self {
@@ -385,6 +422,10 @@ impl WorkerClient {
     }
 
     async fn request<T: DeserializeOwned>(&self, command: Command) -> anyhow::Result<T> {
+        if let Some(panic) = self.inner.crashed.borrow().as_ref() {
+            return Err(worker_crashed_error(panic));
+        }
+
         let id = self.inner.next_id.get();
         self.inner.next_id.set(id + 1);
         let (sender, receiver) = oneshot::channel();
@@ -437,6 +478,35 @@ enum Command {
         operation_id: String,
     },
     RecoverIssuedNotes,
+}
+
+impl Command {
+    /// Name for logging; the payloads may contain secrets like the mnemonic
+    fn name(&self) -> &'static str {
+        match self {
+            Command::Connect { .. } => "connect",
+            Command::GetBalance => "get_balance",
+            Command::GetGatewayFees => "get_gateway_fees",
+            Command::GetEcashFeeBudget => "get_ecash_fee_budget",
+            Command::CreateInvoice { .. } => "create_invoice",
+            Command::SpendExact { .. } => "spend_exact",
+            Command::PayBolt11 { .. } => "pay_bolt11",
+            Command::ReissueNotes { .. } => "reissue_notes",
+            Command::FindLnReceive => "find_ln_receive",
+            Command::WaitForReceive { .. } => "wait_for_receive",
+            Command::RecoverIssuedNotes => "recover_issued_notes",
+        }
+    }
+}
+
+/// Sent by the worker's panic hook instead of a response.
+#[derive(Debug, Serialize, Deserialize)]
+struct WorkerCrash {
+    crashed: String,
+}
+
+fn worker_crashed_error(panic: &str) -> anyhow::Error {
+    anyhow::anyhow!("Wallet worker crashed, reload the page to retry: {panic}")
 }
 
 #[derive(Debug, Serialize, Deserialize)]

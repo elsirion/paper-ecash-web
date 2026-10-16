@@ -190,15 +190,22 @@ impl WalletRuntimeCore {
         let gateway = ln.get_gateway(None::<PublicKey>, false).await?;
         let invoice = lightning_invoice::Bolt11Invoice::from_str(invoice_str)
             .map_err(|e| anyhow::anyhow!("Invalid invoice: {e}"))?;
+        info!(
+            amount_msat = ?invoice.amount_milli_satoshis(),
+            gateway = ?gateway.as_ref().map(|gw| gw.api.to_string()),
+            "Paying invoice via LNv1"
+        );
 
         let payment = ln.pay_bolt11_invoice(gateway, invoice, ()).await?;
         let operation_id = payment.payment_type.operation_id();
+        info!(operation_id = %operation_id.fmt_full(), "LNv1 payment submitted");
 
         match payment.payment_type {
             PayType::Internal(_) => {
                 let sub = ln.subscribe_internal_pay(operation_id).await?;
                 let mut stream = sub.into_stream();
                 while let Some(state) = stream.next().await {
+                    info!(?state, "LNv1 internal payment state");
                     match state {
                         InternalPayState::Preimage(_) => return Ok(()),
                         InternalPayState::RefundSuccess { error, .. } => {
@@ -222,6 +229,7 @@ impl WalletRuntimeCore {
                 let sub = ln.subscribe_ln_pay(operation_id).await?;
                 let mut stream = sub.into_stream();
                 while let Some(state) = stream.next().await {
+                    info!(?state, "LNv1 payment state");
                     match state {
                         LnPayState::Success { .. } => return Ok(()),
                         LnPayState::Refunded { gateway_error } => {
